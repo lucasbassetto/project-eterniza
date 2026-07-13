@@ -1,0 +1,108 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: eterniza-backend
+
+  # ── Banco de dados ───────────────────────────────────────────
+  datasource:
+    url: jdbc:postgresql://localhost:5432/eterniza
+    username: eterniza
+    password: eterniza123
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+
+  jpa:
+    hibernate:
+      ddl-auto: validate       # Flyway cuida do schema — JPA só valida
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        jdbc:
+          batch_size: 20       # melhora performance em inserções em lote
+
+  # ── Flyway (migrations automáticas) ─────────────────────────
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+
+  # ── Redis ────────────────────────────────────────────────────
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      timeout: 3000ms
+
+  # ── RabbitMQ ─────────────────────────────────────────────────
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: eterniza
+    password: eterniza123
+    listener:
+      simple:
+        retry:
+          enabled: true
+          initial-interval: 3s
+          max-attempts: 3
+
+  # ── Upload de arquivos ───────────────────────────────────────
+  servlet:
+    multipart:
+      max-file-size: 20MB
+      max-request-size: 20MB
+
+  # ── E-mail (Resend via SMTP) ─────────────────────────────────
+  mail:
+    host: smtp.resend.com
+    port: 465
+    username: resend
+    password: ${RESEND_API_KEY:sua-api-key-aqui}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          ssl:
+            enable: true
+
+# ── Configurações do Eterniza ─────────────────────────────────
+eterniza:
+
+  jwt:
+    secret: ${JWT_SECRET:eterniza-chave-secreta-dev-minimo-256-bits-1234}
+    expiration-ms: 86400000         # 24h — token do host
+    guest-expiration-ms: 604800000  # 7 dias — token do guest
+
+  app:
+    web-url: ${WEB_URL:http://localhost:3000}
+
+  mail:
+    from: "Eterniza <noreply@eterniza.app>"
+
+  r2:
+    endpoint: ${R2_ENDPOINT:https://seu-account-id.r2.cloudflarestorage.com}
+    access-key: ${R2_ACCESS_KEY:sua-access-key}
+    secret-key: ${R2_SECRET_KEY:sua-secret-key}
+    bucket: ${R2_BUCKET:eterniza-photos}
+    public-url: ${R2_PUBLIC_URL:https://sua-url-publica.r2.dev}
+
+# ── Swagger ───────────────────────────────────────────────────
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+
+# ── Logging ───────────────────────────────────────────────────
+logging:
+  level:
+    com.eterniza: DEBUG
+    org.springframework.security: WARN
+    org.hibernate.SQL: WARN
