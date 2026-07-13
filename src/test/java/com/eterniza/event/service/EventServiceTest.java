@@ -37,7 +37,14 @@ class EventServiceTest {
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
-        eventService = new EventService(eventRepository, revealPublisher, "http://localhost:3000");
+        eventService = new EventService(eventRepository, revealPublisher);
+        try {
+            var field = EventService.class.getDeclaredField("webUrl");
+            field.setAccessible(true);
+            field.set(eventService, "http://localhost:3000");
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 
     // ─── EVENT-01: Create event with valid payload ───

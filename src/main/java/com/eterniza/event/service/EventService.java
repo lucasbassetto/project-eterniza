@@ -27,12 +27,6 @@ public class EventService {
     @Value("${eterniza.app.web-url}")
     private String webUrl;
 
-    public EventService(EventRepository eventRepository, RevealEventPublisher revealPublisher, String webUrl) {
-        this.eventRepository = eventRepository;
-        this.revealPublisher = revealPublisher;
-        this.webUrl = webUrl;
-    }
-
     @Transactional
     public EventResponse create(CreateEventRequest req, UUID hostId) {
         Event event = eventRepository.save(Event.builder()
