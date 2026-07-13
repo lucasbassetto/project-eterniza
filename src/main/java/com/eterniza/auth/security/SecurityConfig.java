@@ -37,8 +37,8 @@ public class SecurityConfig {
             "/api/auth/register",
             "/api/auth/login",
             "/api/auth/guest/session",
-            "/api/events/slug/",          // guest acessa evento pelo slug
-            "/api/photos/gallery/",       // guest visualiza galeria
+            "/api/events/slug/**",        // guest acessa evento pelo slug
+            "/api/photos/gallery/**",     // guest visualiza galeria
             "/swagger-ui",
             "/swagger-ui.html",
             "/api-docs"
@@ -92,8 +92,20 @@ public class SecurityConfig {
                 var authentication = new UsernamePasswordAuthenticationToken(
                         subject, null, List.of(new SimpleGrantedAuthority("ROLE_" + role)));
                 SecurityContextHolder.getContext().setAuthentication(authentication);
+            } else if (isProtectedRoute(req.getRequestURI())) {
+                res.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                return;
             }
             chain.doFilter(req, res);
+        }
+
+        private boolean isProtectedRoute(String uri) {
+            if (uri == null) return false;
+            return !uri.startsWith("/api/auth/") &&
+                   !uri.startsWith("/api/events/slug/") &&
+                   !uri.startsWith("/api/photos/gallery/") &&
+                   !uri.startsWith("/swagger-ui") &&
+                   !uri.startsWith("/api-docs");
         }
     }
 }
