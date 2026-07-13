@@ -1,0 +1,32 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/eterniza
+    username: eterniza
+    password: eterniza123
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: guest
+    password: guest
+  profiles:
+    active: test
+
+eterniza:
+  jwt:
+    secret: eterniza-chave-secreta-de-teste-com-no-minimo-256-bits-1234
+    access-token-expiry: 3600000
+    refresh-token-expiry: 7200000
+  app:
+    web-url: http://localhost:3000
+  r2:
+    endpoint: https://fake-r2-endpoint.example.com
+    access-key: fake-access-key
+    secret-key: fake-secret-key
+    bucket: fake-bucket
+    public-url: https://fake-public-url.example.com
+  mail:
+    from: no-reply@eterniza.com
