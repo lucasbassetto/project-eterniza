@@ -18,7 +18,7 @@ Explicitamente excluído desta fase. Documentado para evitar scope creep.
 | Feature | Reason |
 | --- | --- |
 | Refresh tokens / logout / blacklist de tokens | Não mencionado no BACKEND_SPEC.md Fase 4; JWT é stateless com expiração configurada |
-| Autorização por role no SecurityContext (ex. `@PreAuthorize`) | O próprio BACKEND_SPEC.md deixa o `SecurityContext` vazio no `JwtAuthFilter`, com comentário explícito de que é possível popular "no futuro" — fora do escopo atual |
+| Autorização granular por role (ex. `@PreAuthorize`, checagem de role por endpoint) | O `SecurityContext` agora é populado com subject + uma authority `ROLE_<role>` (correção necessária — ver Assumptions), mas nenhum endpoint desta fase restringe acesso por role; isso fica para quando rotas de host/guest específicas existirem (Fases 5+) |
 | Rate limiting em `/register` e `/login` | Não especificado no BACKEND_SPEC.md; seria uma preocupação de infraestrutura separada |
 | Recuperação de senha / verificação de e-mail | Não mencionado na Fase 4 |
 | Endpoints de evento/foto reais nas rotas públicas (`/api/events/slug/`, `/api/photos/gallery/`) | Serão implementados nas Fases 5 e 6; aqui apenas o prefixo é registrado como público no `SecurityConfig` |
@@ -29,7 +29,7 @@ Explicitamente excluído desta fase. Documentado para evitar scope creep.
 
 | Assumption / decision | Chosen default | Rationale | Confirmed? |
 | --- | --- | --- | --- |
-| `JwtAuthFilter` não popula o `SecurityContext` | Segue exatamente o código do BACKEND_SPEC.md (apenas valida o token e retorna 401 se inválido) | O próprio spec documenta isso como decisão futura, não desta fase | y (fonte: BACKEND_SPEC.md linhas 803-809) |
+| `JwtAuthFilter` não popula o `SecurityContext` | **Corrigido**: passou a popular (subject + `ROLE_<role>`) após falha real em T6 | Sem isso, `anyRequest().authenticated()` nunca passa — nem com token válido — travando toda rota protegida; não é "refinamento futuro", é o mecanismo básico de autenticação | y — corrigido em T6, decisão do usuário: aplicar o fix (SPEC_DEVIATION documentado no commit) em vez de seguir o BACKEND_SPEC.md literalmente |
 | Corrida de cadastro duplicado (dois `register` concorrentes com mesmo e-mail) | Confiar na constraint `UNIQUE` de `hosts.email` (V1 migration) como rede de segurança além do `existsByEmail` em nível de aplicação; a segunda requisição falha com erro de integridade, tratado pelo `handleGeneric` (500) | `existsByEmail` sozinho tem TOCTOU; a spec não pede tratamento dedicado (ex. converter para 400), então o comportamento genérico do `GlobalExceptionHandler` já é suficiente | y — assumido, não há requisito explícito no BACKEND_SPEC.md |
 | Sessão guest não é idempotente (cada chamada gera um novo token) | Comportamento esperado — sessões são stateless, reemitir é intencional. **Corrigido**: unicidade do token NÃO é garantida entre chamadas no mesmo segundo (sem `jti`, `iat`/`exp` com granularidade de segundo) | JWT stateless não tem conceito de "sessão existente" para deduplicar; unicidade byte-a-byte não é um requisito do BACKEND_SPEC.md e não é garantida pelo `JwtUtil` validado na Fase 3 | y — corrigido após falha de teste em T4 (AuthServiceTest), decisão do usuário: remover a AC de unicidade em vez de adicionar `jti` ao JwtUtil |
 | Rate limiting / observability adicional em auth | N/A nesta fase | Não mencionado no BACKEND_SPEC.md; `GlobalExceptionHandler` já loga erros inesperados (Fase 3) | y |
@@ -98,13 +98,13 @@ Explicitamente excluído desta fase. Documentado para evitar scope creep.
 
 **Acceptance Criteria**:
 
-1. WHEN uma requisição chega para uma rota pública (`/api/auth/register`, `/api/auth/login`, `/api/auth/guest/session`, prefixo `/api/events/slug/`, prefixo `/api/photos/gallery/`, `/swagger-ui`, `/swagger-ui.html`, `/api-docs`) sem header `Authorization` THEN o sistema SHALL permitir a requisição (não retornar 401 pelo filtro).
-2. WHEN uma requisição chega para qualquer outra rota sem header `Authorization`, OR com header que não começa com "Bearer ", THEN o sistema SHALL retornar 401 e SHALL NOT repassar a requisição adiante na cadeia de filtros.
-3. WHEN uma requisição chega para uma rota não-pública com header `Authorization: Bearer <token>` onde `<token>` é estruturalmente inválido (assinatura incorreta ou expirado) THEN o sistema SHALL retornar 401 e SHALL NOT repassar a requisição adiante.
-4. WHEN uma requisição chega para uma rota não-pública com um `<token>` válido (assinatura correta e não expirado) THEN o sistema SHALL repassar a requisição adiante na cadeia de filtros (chain.doFilter chamado).
+1. WHEN uma requisição chega para uma rota pública (`/api/auth/register`, `/api/auth/login`, `/api/auth/guest/session`, prefixo `/api/events/slug/`, prefixo `/api/photos/gallery/`, `/swagger-ui`, `/swagger-ui.html`, `/api-docs`) sem header `Authorization` THEN o sistema SHALL permitir a requisição (não retornar 401/403).
+2. WHEN uma requisição chega para qualquer rota não-pública sem header `Authorization`, OR com header que não começa com "Bearer ", THEN o `JwtAuthFilter` SHALL repassar a requisição adiante (`chain.doFilter`), mas o Spring Security SHALL bloqueá-la em seguida com **403** — o usuário anônimo padrão não satisfaz `anyRequest().authenticated()` e não há `AuthenticationEntryPoint` customizado (comportamento confirmado empiricamente em T6, não é 401).
+3. WHEN uma requisição chega para uma rota não-pública com header `Authorization: Bearer <token>` onde `<token>` é estruturalmente inválido (assinatura incorreta ou expirado) THEN o `JwtAuthFilter` SHALL retornar 401 diretamente e SHALL NOT repassar a requisição adiante.
+4. WHEN uma requisição chega para uma rota não-pública com um `<token>` válido (assinatura correta e não expirado) THEN o `JwtAuthFilter` SHALL popular o `SecurityContext` (subject + role do token) e repassar a requisição adiante — permitindo que `anyRequest().authenticated()` seja satisfeito e a requisição chegue ao handler. **Correção (SPEC_DEVIATION)**: o BACKEND_SPEC.md original deixava o `SecurityContext` vazio; sem isso, `anyRequest().authenticated()` nunca passa, mesmo com token válido, e nenhuma rota protegida seria jamais acessível. Corrigido após confirmação com o usuário.
 5. WHEN a aplicação sobe THEN CSRF SHALL estar desabilitado e a política de sessão SHALL ser `STATELESS` (sem `HttpSession` criada).
 
-**Independent Test**: Com `MockMvc`/filtro isolado, simular requisição sem token para rota protegida (401), com token válido para rota protegida (passa adiante), sem token para rota pública (passa adiante).
+**Independent Test**: Com `MockMvc` end-to-end (cadeia real do Spring Security), simular requisição sem token para rota protegida (403), com token inválido (401 pelo filtro), com token válido para rota protegida (não bloqueada — SecurityContext populado), sem token para rota pública (não bloqueada).
 
 ---
 
