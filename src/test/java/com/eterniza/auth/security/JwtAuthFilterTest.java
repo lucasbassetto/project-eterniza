@@ -25,11 +25,25 @@ class JwtAuthFilterTest {
     }
 
     @Test
-    void doFilter_noAuthorizationHeader_callsChainAndDoesNotSet401() throws Exception {
+    void doFilter_noAuthorizationHeader_onProtectedRoute_sets401() throws Exception {
         HttpServletRequest request = mock(HttpServletRequest.class);
         HttpServletResponse response = mock(HttpServletResponse.class);
         FilterChain chain = mock(FilterChain.class);
         when(request.getHeader("Authorization")).thenReturn(null);
+        when(request.getRequestURI()).thenReturn("/api/events/my");
+
+        filter.doFilterInternal(request, response, chain);
+
+        verify(response).setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+    }
+
+    @Test
+    void doFilter_noAuthorizationHeader_onPublicRoute_callsChain() throws Exception {
+        HttpServletRequest request = mock(HttpServletRequest.class);
+        HttpServletResponse response = mock(HttpServletResponse.class);
+        FilterChain chain = mock(FilterChain.class);
+        when(request.getHeader("Authorization")).thenReturn(null);
+        when(request.getRequestURI()).thenReturn("/api/auth/login");
 
         filter.doFilterInternal(request, response, chain);
 
@@ -38,11 +52,25 @@ class JwtAuthFilterTest {
     }
 
     @Test
-    void doFilter_headerWithoutBearerPrefix_callsChainAndDoesNotSet401() throws Exception {
+    void doFilter_headerWithoutBearerPrefix_onProtectedRoute_sets401() throws Exception {
         HttpServletRequest request = mock(HttpServletRequest.class);
         HttpServletResponse response = mock(HttpServletResponse.class);
         FilterChain chain = mock(FilterChain.class);
         when(request.getHeader("Authorization")).thenReturn("Basic dXNlcjpwYXNz");
+        when(request.getRequestURI()).thenReturn("/api/events/my");
+
+        filter.doFilterInternal(request, response, chain);
+
+        verify(response).setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+    }
+
+    @Test
+    void doFilter_headerWithoutBearerPrefix_onPublicRoute_callsChain() throws Exception {
+        HttpServletRequest request = mock(HttpServletRequest.class);
+        HttpServletResponse response = mock(HttpServletResponse.class);
+        FilterChain chain = mock(FilterChain.class);
+        when(request.getHeader("Authorization")).thenReturn("Basic dXNlcjpwYXNz");
+        when(request.getRequestURI()).thenReturn("/api/auth/login");
 
         filter.doFilterInternal(request, response, chain);
 
@@ -58,6 +86,7 @@ class JwtAuthFilterTest {
         String tampered = jwtUtil.generateHostToken("host-123", "lucas@eterniza.com")
                 .substring(0, 10) + "tampered-suffix";
         when(request.getHeader("Authorization")).thenReturn("Bearer " + tampered);
+        when(request.getRequestURI()).thenReturn("/api/events/my");
 
         filter.doFilterInternal(request, response, chain);
 
@@ -72,6 +101,7 @@ class JwtAuthFilterTest {
         FilterChain chain = mock(FilterChain.class);
         String validToken = jwtUtil.generateHostToken("host-123", "lucas@eterniza.com");
         when(request.getHeader("Authorization")).thenReturn("Bearer " + validToken);
+        when(request.getRequestURI()).thenReturn("/api/events/my");
 
         filter.doFilterInternal(request, response, chain);
 
@@ -86,6 +116,7 @@ class JwtAuthFilterTest {
         FilterChain chain = mock(FilterChain.class);
         String validToken = jwtUtil.generateHostToken("host-123", "lucas@eterniza.com");
         when(request.getHeader("Authorization")).thenReturn("Bearer " + validToken);
+        when(request.getRequestURI()).thenReturn("/api/events/my");
 
         filter.doFilterInternal(request, response, chain);
 

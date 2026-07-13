@@ -184,12 +184,11 @@ class AuthControllerTest {
 
     @Test
     void protectedRoute_withoutAuthorizationHeader_isBlockedBySecurityChain() throws Exception {
-        // Spring Security 6 sem AuthenticationEntryPoint customizado: usuario anonimo
-        // falha anyRequest().authenticated() e recebe 403 (nao 401) do AccessDeniedHandler padrao.
+        // JwtAuthFilter retorna 401 (Unauthorized) para rotas protegidas sem token
         MvcResult result = mockMvc.perform(get("/api/protected-route-not-mapped-yet"))
                 .andReturn();
 
-        assertThat(result.getResponse().getStatus()).isEqualTo(403);
+        assertThat(result.getResponse().getStatus()).isEqualTo(401);
     }
 
     @Test
