@@ -8,10 +8,13 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
@@ -78,8 +81,17 @@ public class SecurityConfig {
                     res.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
                     return;
                 }
-                // Aqui você poderia popular o SecurityContext se precisar
-                // de controle de roles mais granular no futuro
+                // SPEC_DEVIATION: BACKEND_SPEC.md deixava o SecurityContext vazio
+                // ("no futuro"), mas sem isso anyRequest().authenticated() nunca
+                // passa para ninguem - nem com token valido - travando toda rota
+                // protegida. Populamos o minimo necessario (subject + role) para
+                // a autenticacao funcionar; autorizacao granular por role continua
+                // fora de escopo.
+                String subject = jwtUtil.extractSubject(token);
+                String role = jwtUtil.extractRole(token);
+                var authentication = new UsernamePasswordAuthenticationToken(
+                        subject, null, List.of(new SimpleGrantedAuthority("ROLE_" + role)));
+                SecurityContextHolder.getContext().setAuthentication(authentication);
             }
             chain.doFilter(req, res);
         }
