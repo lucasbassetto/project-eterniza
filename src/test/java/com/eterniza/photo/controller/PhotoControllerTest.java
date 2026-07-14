@@ -3,7 +3,6 @@ package com.eterniza.photo.controller;
 import com.eterniza.common.security.JwtUtil;
 import com.eterniza.event.domain.Event;
 import com.eterniza.event.domain.EventStatus;
-import com.eterniza.event.domain.FilmStyle;
 import com.eterniza.event.repository.EventRepository;
 import com.eterniza.photo.domain.Photo;
 import com.eterniza.photo.domain.PhotoStatus;
@@ -74,7 +73,6 @@ class PhotoControllerTest {
                 .hostId(UUID.randomUUID())
                 .name("Festa")
                 .slug("festa-" + UUID.randomUUID().toString().substring(0, 8))
-                .filmStyle(FilmStyle.VINTAGE)
                 .status(EventStatus.ACTIVE)
                 .revealAt(Instant.now().plus(1, ChronoUnit.DAYS))
                 .build());

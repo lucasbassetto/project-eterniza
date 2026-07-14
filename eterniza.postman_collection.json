@@ -154,10 +154,10 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Casamento Ana & João\",\n  \"filmStyle\": \"VINTAGE\",\n  \"revealAt\": \"{{revealAt}}\",\n  \"guestLimit\": 10\n}"
+              "raw": "{\n  \"name\": \"Casamento Ana & João\",\n  \"revealAt\": \"{{revealAt}}\",\n  \"guestLimit\": 10\n}"
             },
             "url": { "raw": "{{baseUrl}}/api/events", "host": [ "{{baseUrl}}" ], "path": [ "api", "events" ] },
-            "description": "Cria evento. 201 Created. data = EventResponse (id, slug, qrCodeUrl, ...).\nRequer Authorization: Bearer {{hostToken}}.\nfilmStyle ∈ VINTAGE | BLACK_WHITE | COOL | ORIGINAL.\nrevealAt @Future (preenchido automaticamente). guestLimit opcional.\nSem token → 401."
+            "description": "Cria evento. 201 Created. data = EventResponse (id, slug, qrCodeUrl, ...).\nRequer Authorization: Bearer {{hostToken}}.\nrevealAt @Future (preenchido automaticamente). guestLimit opcional.\nSem token → 401."
           }
         },
         {

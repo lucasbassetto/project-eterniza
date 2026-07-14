@@ -1,6 +1,5 @@
 package com.eterniza.event.controller;
 
-import com.eterniza.event.domain.FilmStyle;
 import com.eterniza.event.dto.CreateEventRequest;
 import com.eterniza.event.repository.EventRepository;
 import com.eterniza.common.security.JwtUtil;
@@ -65,7 +64,7 @@ class EventControllerTest {
     @Test
     void create_validPayload_returns201WithEventResponse() throws Exception {
         Instant futureTime = Instant.now().plus(7, ChronoUnit.DAYS);
-        CreateEventRequest req = new CreateEventRequest("Meu Evento", FilmStyle.VINTAGE, futureTime, 10);
+        CreateEventRequest req = new CreateEventRequest("Meu Evento", futureTime, 10);
 
         mockMvc.perform(post("/api/events")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -77,7 +76,6 @@ class EventControllerTest {
                 .andExpect(jsonPath("$.data.name").value("Meu Evento"))
                 .andExpect(jsonPath("$.data.slug").exists())
                 .andExpect(jsonPath("$.data.qrCodeUrl").exists())
-                .andExpect(jsonPath("$.data.filmStyle").value("VINTAGE"))
                 .andExpect(jsonPath("$.data.status").value("ACTIVE"))
                 .andExpect(jsonPath("$.data.guestLimit").value(10))
                 .andExpect(jsonPath("$.data.guestCount").value(0))
@@ -88,7 +86,7 @@ class EventControllerTest {
     @Test
     void create_invalidPayload_returns400WithValidationMessages() throws Exception {
         String invalidJson = """
-                {"name": "", "filmStyle": null, "revealAt": "2020-01-01T00:00:00Z"}
+                {"name": "", "revealAt": "2020-01-01T00:00:00Z"}
                 """;
 
         mockMvc.perform(post("/api/events")
@@ -104,7 +102,7 @@ class EventControllerTest {
     @Test
     void create_withoutAuthorizationHeader_returns401() throws Exception {
         Instant futureTime = Instant.now().plus(7, ChronoUnit.DAYS);
-        CreateEventRequest req = new CreateEventRequest("Event", FilmStyle.COOL, futureTime, null);
+        CreateEventRequest req = new CreateEventRequest("Event", futureTime, null);
 
         mockMvc.perform(post("/api/events")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -116,7 +114,7 @@ class EventControllerTest {
     @Test
     void findBySlug_existingSlug_returns200WithEventResponse() throws Exception {
         Instant futureTime = Instant.now().plus(7, ChronoUnit.DAYS);
-        CreateEventRequest req = new CreateEventRequest("Event Pub", FilmStyle.BLACK_WHITE, futureTime, null);
+        CreateEventRequest req = new CreateEventRequest("Event Pub", futureTime, null);
 
         MvcResult createResult = mockMvc.perform(post("/api/events")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -146,7 +144,7 @@ class EventControllerTest {
     @Test
     void findBySlug_isPublicRoute_noAuthRequired() throws Exception {
         Instant futureTime = Instant.now().plus(7, ChronoUnit.DAYS);
-        CreateEventRequest req = new CreateEventRequest("Public Event", FilmStyle.ORIGINAL, futureTime, null);
+        CreateEventRequest req = new CreateEventRequest("Public Event", futureTime, null);
 
         MvcResult createResult = mockMvc.perform(post("/api/events")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -168,8 +166,8 @@ class EventControllerTest {
     @Test
     void myEvents_validToken_returns200WithEventList() throws Exception {
         Instant futureTime = Instant.now().plus(7, ChronoUnit.DAYS);
-        CreateEventRequest req1 = new CreateEventRequest("Event 1", FilmStyle.VINTAGE, futureTime, null);
-        CreateEventRequest req2 = new CreateEventRequest("Event 2", FilmStyle.COOL, futureTime.plus(1, ChronoUnit.DAYS), null);
+        CreateEventRequest req1 = new CreateEventRequest("Event 1", futureTime, null);
+        CreateEventRequest req2 = new CreateEventRequest("Event 2", futureTime.plus(1, ChronoUnit.DAYS), null);
 
         mockMvc.perform(post("/api/events")
                         .contentType(MediaType.APPLICATION_JSON)

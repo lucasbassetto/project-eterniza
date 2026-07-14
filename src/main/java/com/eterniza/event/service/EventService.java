@@ -33,7 +33,6 @@ public class EventService {
                 .hostId(hostId)
                 .name(req.name())
                 .slug(UUID.randomUUID().toString())
-                .filmStyle(req.filmStyle())
                 .revealAt(req.revealAt())
                 .guestLimit(req.guestLimit() != null ? req.guestLimit() : 5)
                 .build());
@@ -77,7 +76,7 @@ public class EventService {
     private EventResponse toResponse(Event e) {
         return new EventResponse(e.getId(), e.getName(), e.getSlug(),
                 "%s/e/%s".formatted(webUrl, e.getSlug()),
-                e.getFilmStyle(), e.getStatus(), e.getRevealAt(),
+                e.getStatus(), e.getRevealAt(),
                 e.getGuestLimit(), e.getGuestCount(), e.getPhotoCount(), e.getCreatedAt());
     }
 }

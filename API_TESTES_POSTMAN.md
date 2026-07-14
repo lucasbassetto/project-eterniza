@@ -86,14 +86,12 @@ Body:
 ```json
 {
   "name": "Casamento Ana & João",
-  "filmStyle": "VINTAGE",
   "revealAt": "2026-07-21T12:00:00Z",
   "guestLimit": 10
 }
 ```
 
 Regras do body:
-- `filmStyle`: um destes valores exatos → `VINTAGE`, `BLACK_WHITE`, `COOL`, `ORIGINAL`. É apenas o **filtro sugerido/padrão** do evento (o app pode destacá-lo); o convidado escolhe livremente o filtro dele na hora de tirar a foto.
 - `revealAt`: **precisa ser uma data no futuro** (formato ISO 8601 com `Z`). Ajuste para depois da data de hoje.
 - `guestLimit`: opcional, pode remover o campo do JSON se quiser usar o padrão
 
@@ -109,7 +107,6 @@ Resposta esperada (201):
     "name": "Casamento Ana & João",
     "slug": "casamento-ana-joao-x7k2",
     "qrCodeUrl": "...",
-    "filmStyle": "VINTAGE",
     "status": "ACTIVE",
     "revealAt": "2026-07-21T12:00:00Z",
     "guestLimit": 10,

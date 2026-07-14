@@ -4,7 +4,6 @@ import com.eterniza.common.exception.BusinessException;
 import com.eterniza.common.exception.NotFoundException;
 import com.eterniza.event.domain.Event;
 import com.eterniza.event.domain.EventStatus;
-import com.eterniza.event.domain.FilmStyle;
 import com.eterniza.event.dto.CreateEventRequest;
 import com.eterniza.event.dto.EventResponse;
 import com.eterniza.event.messaging.RevealEventPublisher;
@@ -52,7 +51,7 @@ class EventServiceTest {
     void create_validPayload_returnEventResponseWithIdAndSlug() {
         UUID hostId = UUID.randomUUID();
         Instant futureTime = Instant.now().plus(7, ChronoUnit.DAYS);
-        CreateEventRequest req = new CreateEventRequest("Meu Evento", FilmStyle.VINTAGE, futureTime, 10);
+        CreateEventRequest req = new CreateEventRequest("Meu Evento", futureTime, 10);
 
         // Mock the save to return an event with generated ID and slug
         Event savedEvent = Event.builder()
@@ -60,7 +59,6 @@ class EventServiceTest {
                 .hostId(hostId)
                 .name("Meu Evento")
                 .slug(UUID.randomUUID().toString())
-                .filmStyle(FilmStyle.VINTAGE)
                 .status(EventStatus.ACTIVE)
                 .revealAt(futureTime)
                 .guestLimit(10)
@@ -72,7 +70,6 @@ class EventServiceTest {
         assertThat(response.id()).isNotNull();
         assertThat(response.slug()).isNotNull();
         assertThat(response.name()).isEqualTo("Meu Evento");
-        assertThat(response.filmStyle()).isEqualTo(FilmStyle.VINTAGE);
         assertThat(response.status()).isEqualTo(EventStatus.ACTIVE);
         assertThat(response.guestLimit()).isEqualTo(10);
         assertThat(response.guestCount()).isZero();
@@ -86,14 +83,13 @@ class EventServiceTest {
     void create_successfullyCreated_tokenResponseIncludesHostIdAndEmail() {
         UUID hostId = UUID.randomUUID();
         Instant futureTime = Instant.now().plus(7, ChronoUnit.DAYS);
-        CreateEventRequest req = new CreateEventRequest("Event", FilmStyle.COOL, futureTime, null);
+        CreateEventRequest req = new CreateEventRequest("Event", futureTime, null);
 
         Event savedEvent = Event.builder()
                 .id(UUID.randomUUID())
                 .hostId(hostId)
                 .name("Event")
                 .slug(UUID.randomUUID().toString())
-                .filmStyle(FilmStyle.COOL)
                 .status(EventStatus.ACTIVE)
                 .revealAt(futureTime)
                 .guestLimit(5)
@@ -104,7 +100,6 @@ class EventServiceTest {
 
         // Verify the response contains correct data derived from the Event
         assertThat(response.id()).isEqualTo(savedEvent.getId());
-        assertThat(response.filmStyle()).isEqualTo(FilmStyle.COOL);
     }
 
     // ─── EVENT-05: Find by slug - success ───
@@ -116,7 +111,6 @@ class EventServiceTest {
                 .hostId(UUID.randomUUID())
                 .name("Test Event")
                 .slug(slug)
-                .filmStyle(FilmStyle.VINTAGE)
                 .status(EventStatus.ACTIVE)
                 .revealAt(Instant.now().plus(1, ChronoUnit.DAYS))
                 .build();

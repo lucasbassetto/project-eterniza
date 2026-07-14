@@ -29,11 +29,6 @@ public class Event {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     @Builder.Default
-    private FilmStyle filmStyle = FilmStyle.VINTAGE;
-
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    @Builder.Default
     private EventStatus status = EventStatus.ACTIVE;
 
     @Column(nullable = false)

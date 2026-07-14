@@ -55,7 +55,7 @@ Fase 6 implements the photo upload and gallery system for Eterniza. Guests uploa
 
 ## Dependencies
 
-- Fase 5: Event entity, EventStatus, FilmStyle (agora usado apenas como filtro sugerido/padrão do evento), EventRepository
+- Fase 5: Event entity, EventStatus, EventRepository
 - JwtUtil: extractClaims, generateGuestToken methods
 - ~~RabbitMQ PHOTO_QUEUE / ImageMagick~~ — removidos (filtro é client-side)
 
