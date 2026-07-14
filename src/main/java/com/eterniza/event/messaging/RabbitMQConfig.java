@@ -11,22 +11,15 @@ public class RabbitMQConfig {
     public static final String EXCHANGE         = "eterniza.events";
     public static final String REVEAL_QUEUE     = "eterniza.event.revealed";
     public static final String REVEAL_KEY       = "event.revealed";
-    public static final String PHOTO_QUEUE      = "eterniza.photo.process";
-    public static final String PHOTO_KEY        = "photo.uploaded";
 
     @Bean TopicExchange eventsExchange() {
         return new TopicExchange(EXCHANGE, true, false);
     }
 
     @Bean Queue revealQueue() { return QueueBuilder.durable(REVEAL_QUEUE).build(); }
-    @Bean Queue photoQueue()  { return QueueBuilder.durable(PHOTO_QUEUE).build(); }
 
     @Bean Binding revealBinding(Queue revealQueue, TopicExchange eventsExchange) {
         return BindingBuilder.bind(revealQueue).to(eventsExchange).with(REVEAL_KEY);
-    }
-
-    @Bean Binding photoBinding(Queue photoQueue, TopicExchange eventsExchange) {
-        return BindingBuilder.bind(photoQueue).to(eventsExchange).with(PHOTO_KEY);
     }
 
     @Bean Jackson2JsonMessageConverter messageConverter() {

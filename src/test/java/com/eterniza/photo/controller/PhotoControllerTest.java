@@ -11,7 +11,6 @@ import com.eterniza.photo.repository.PhotoRepository;
 import com.eterniza.photo.service.StorageService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -60,9 +59,8 @@ class PhotoControllerTest {
     @Autowired private PhotoRepository photoRepository;
     @Autowired private JwtUtil jwtUtil;
 
-    // External I/O isolated — real controller/service/DB, mocked R2 + broker
+    // External I/O isolated — real controller/service/DB, mocked R2 storage
     @MockBean private StorageService storageService;
-    @MockBean private RabbitTemplate rabbitTemplate;
 
     private UUID eventId;
     private String guestToken;

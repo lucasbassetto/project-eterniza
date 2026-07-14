@@ -10,7 +10,6 @@ import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
-import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 import java.io.IOException;
@@ -43,17 +42,5 @@ public class StorageService {
                         .bucket(bucket).key(key).contentType(file.getContentType()).build(),
                 RequestBody.fromBytes(file.getBytes()));
         return publicUrl + "/" + key;
-    }
-
-    public String upload(String key, byte[] bytes, String contentType) {
-        s3.putObject(PutObjectRequest.builder()
-                        .bucket(bucket).key(key).contentType(contentType).build(),
-                RequestBody.fromBytes(bytes));
-        return publicUrl + "/" + key;
-    }
-
-    public byte[] download(String key) throws IOException {
-        return s3.getObjectAsBytes(GetObjectRequest.builder()
-                .bucket(bucket).key(key).build()).asByteArray();
     }
 }
