@@ -1,6 +1,7 @@
 package com.eterniza.event.service;
 
 import com.eterniza.common.exception.BusinessException;
+import com.eterniza.common.exception.ForbiddenException;
 import com.eterniza.common.exception.NotFoundException;
 import com.eterniza.event.domain.Event;
 import com.eterniza.event.domain.EventStatus;
@@ -303,6 +304,64 @@ class EventServiceTest {
         eventService.reveal(eventId);
 
         verify(revealPublisher).publish(eventId.toString(), hostId.toString());
+    }
+
+    // ─── Revelação manual pelo host ───
+    @Test
+    void revealAsHost_owner_revealsAndPublishes() {
+        UUID eventId = UUID.randomUUID();
+        UUID hostId = UUID.randomUUID();
+        Event event = Event.builder()
+                .id(eventId).hostId(hostId).name("Event").slug("slug")
+                .status(EventStatus.ACTIVE).build();
+        when(eventRepository.findById(eventId)).thenReturn(Optional.of(event));
+
+        EventResponse response = eventService.revealAsHost(eventId, hostId);
+
+        assertThat(event.getStatus()).isEqualTo(EventStatus.REVEALED);
+        assertThat(response.status()).isEqualTo(EventStatus.REVEALED);
+        verify(revealPublisher).publish(eventId.toString(), hostId.toString());
+    }
+
+    @Test
+    void revealAsHost_notOwner_throwsForbiddenAndDoesNotReveal() {
+        UUID eventId = UUID.randomUUID();
+        UUID ownerId = UUID.randomUUID();
+        UUID intruderId = UUID.randomUUID();
+        Event event = Event.builder()
+                .id(eventId).hostId(ownerId).name("Event").slug("slug")
+                .status(EventStatus.ACTIVE).build();
+        when(eventRepository.findById(eventId)).thenReturn(Optional.of(event));
+
+        assertThatThrownBy(() -> eventService.revealAsHost(eventId, intruderId))
+                .isInstanceOf(ForbiddenException.class);
+
+        assertThat(event.getStatus()).isEqualTo(EventStatus.ACTIVE);
+        verify(revealPublisher, never()).publish(any(), any());
+    }
+
+    @Test
+    void revealAsHost_eventNotFound_throwsNotFound() {
+        UUID eventId = UUID.randomUUID();
+        when(eventRepository.findById(eventId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> eventService.revealAsHost(eventId, UUID.randomUUID()))
+                .isInstanceOf(NotFoundException.class);
+    }
+
+    @Test
+    void revealAsHost_alreadyRevealed_isIdempotentAndDoesNotRepublish() {
+        UUID eventId = UUID.randomUUID();
+        UUID hostId = UUID.randomUUID();
+        Event event = Event.builder()
+                .id(eventId).hostId(hostId).name("Event").slug("slug")
+                .status(EventStatus.REVEALED).build();
+        when(eventRepository.findById(eventId)).thenReturn(Optional.of(event));
+
+        EventResponse response = eventService.revealAsHost(eventId, hostId);
+
+        assertThat(response.status()).isEqualTo(EventStatus.REVEALED);
+        verify(revealPublisher, never()).publish(any(), any());
     }
 
     // ─── EVENT-11: CheckAndRevealPending ───

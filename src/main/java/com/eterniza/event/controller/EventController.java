@@ -47,4 +47,13 @@ public class EventController {
         UUID hostId = UUID.fromString(jwtUtil.extractSubject(auth.replace("Bearer ", "")));
         return ApiResponse.ok(eventService.findByHost(hostId));
     }
+
+    @PostMapping("/{id}/reveal")
+    @Operation(summary = "Revelar evento agora (somente o host dono)")
+    public ApiResponse<EventResponse> reveal(
+            @PathVariable UUID id,
+            @RequestHeader("Authorization") String auth) {
+        UUID hostId = UUID.fromString(jwtUtil.extractSubject(auth.replace("Bearer ", "")));
+        return ApiResponse.ok("Evento revelado", eventService.revealAsHost(id, hostId));
+    }
 }

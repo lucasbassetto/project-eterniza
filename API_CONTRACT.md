@@ -66,6 +66,7 @@ Erros usam o mesmo envelope, com `success: false` e a mensagem em `message`:
 | **400** | Regra de negócio violada | `"E-mail já cadastrado"`, `"Arquivo vazio"` |
 | **400** | Validação de payload falhou | mensagens dos campos **unidas por `, `** (ver abaixo) |
 | **401** | Credenciais inválidas, ou rota protegida sem token / com token inválido | `"Credenciais inválidas"` |
+| **403** | Autenticado, mas sem permissão sobre o recurso | `"Você não é o dono deste evento"` |
 | **404** | Recurso não encontrado | `"Evento não encontrado: {slug}"` |
 | **500** | Erro inesperado | `"Erro interno. Tente novamente."` |
 
@@ -116,6 +117,7 @@ Authorization: Bearer <token>
 |---|---|
 | `POST /api/events` | hostToken |
 | `GET /api/events/my` | hostToken |
+| `POST /api/events/{id}/reveal` | hostToken (**só o dono**) |
 | `POST /api/photos/upload` | guestToken |
 
 ---
@@ -230,7 +232,24 @@ Erros: **404** `"Evento não encontrado: {slug}"`.
 
 ---
 
-### 5.7 `POST /api/photos/upload` — enviar foto
+### 5.7 `POST /api/events/{id}/reveal` — revelar o evento agora
+
+🔒 hostToken. Sem body. Revela o evento **imediatamente**, antes da `revealAt` — abre a galeria e dispara o e-mail ao host.
+
+Só o **dono** do evento pode revelar.
+
+**200 OK**, `message: "Evento revelado"`, `data` = EventResponse (com `status: "REVEALED"`).
+
+| Status | Quando |
+|---|---|
+| 200 | Revelado com sucesso — **idempotente**: revelar um evento já revelado devolve 200 e não reenvia o e-mail |
+| 401 | Sem token / token inválido |
+| **403** | Autenticado, mas **não é o dono** do evento → `"Você não é o dono deste evento"` |
+| 404 | Evento não existe |
+
+---
+
+### 5.8 `POST /api/photos/upload` — enviar foto
 
 🔒 guestToken. **`multipart/form-data`** (não JSON):
 
@@ -265,7 +284,7 @@ A foto é armazenada e fica **imediatamente pronta**. Não há processamento ass
 
 ---
 
-### 5.8 `GET /api/photos/gallery/{eventId}` — galeria do evento
+### 5.9 `GET /api/photos/gallery/{eventId}` — galeria do evento
 
 Público (sem token). É o coração do modelo de "revelação".
 
@@ -349,6 +368,7 @@ Público (sem token). É o coração do modelo de "revelação".
 4. GET /api/events/my                        → acompanha seus eventos
 5. GET /api/photos/gallery/{eventId}         → vê a contagem subindo (fotos escondidas)
 6. Na revealAt → recebe e-mail e a galeria abre
+   (ou POST /api/events/{id}/reveal → revela na hora, sem esperar)
 ```
 
 ### Fluxo do convidado
@@ -363,9 +383,15 @@ Público (sem token). É o coração do modelo de "revelação".
 ```
 
 ### Revelação
-É **automática e baseada em tempo**: um scheduler roda **a cada 60 segundos** e revela os eventos cuja `revealAt` já passou. Ao revelar, um e-mail é enviado ao host.
 
-⚠️ **Não existe endpoint de "revelar agora"** — o app não tem como forçar a revelação. Se isso for um requisito de produto, o backend precisa expor um endpoint (ver §9).
+Duas formas, ambas levam o evento a `REVEALED` e disparam o e-mail ao host:
+
+1. **Automática (por tempo)** — um scheduler roda **a cada 60 segundos** e revela os eventos cuja `revealAt` já passou.
+2. **Manual (pelo host)** — `POST /api/events/{id}/reveal` (§5.7). O app pode oferecer um botão "revelar agora" ao dono do evento.
+
+Revelar é **idempotente**: revelar de novo não reenvia o e-mail.
+
+ℹ️ A notificação por e-mail é **fire-and-forget**: se o broker de mensagens estiver fora, o evento **é revelado mesmo assim** (a galeria abre) e apenas o e-mail é perdido. O app nunca vai receber erro por causa disso.
 
 ---
 
@@ -397,7 +423,7 @@ Encontradas ao ler o código. Nenhuma delas impede o app de funcionar, mas mudam
 | 2 | **`guestCount` nunca incrementa e `guestLimit` nunca é aplicado** | O limite de convidados **não é enforced**. Qualquer número de convidados entra. |
 | 3 | **A sessão de guest não valida se o evento existe** | É possível gerar um guestToken para um `eventId` inexistente. O app deve validar antes via `GET /api/events/slug/{slug}`. |
 | ~~4~~ | ~~`photoCount` no EventResponse é sempre 0~~ | ✅ **CORRIGIDO** — agora reflete a contagem real de fotos. |
-| 5 | **Não há endpoint de "revelar agora"** | A revelação é só por tempo (scheduler de 60s). Sem botão de revelar manual. |
+| ~~5~~ | ~~Não há endpoint de "revelar agora"~~ | ✅ **CORRIGIDO** — `POST /api/events/{id}/reveal` (só o dono). |
 | 6 | **Não há endpoint para listar/apagar uma foto individual** | Só a galeria agregada. Sem "apagar minha foto". |
 | 7 | **Erros de validação vêm como string única concatenada** | Não dá para destacar o campo com erro no formulário sem fazer parsing da string. |
 | 8 | **`slug` é um UUID**, não um slug legível | O link do QR fica feio (`/e/ecfa1dfe-3177-...`). |

@@ -1,6 +1,7 @@
 package com.eterniza.event.service;
 
 import com.eterniza.common.exception.BusinessException;
+import com.eterniza.common.exception.ForbiddenException;
 import com.eterniza.common.exception.NotFoundException;
 import com.eterniza.event.domain.Event;
 import com.eterniza.event.domain.EventStatus;
@@ -68,6 +69,26 @@ public class EventService {
         if (event.isRevealed()) return;
         event.setStatus(EventStatus.REVEALED);
         revealPublisher.publish(event.getId().toString(), event.getHostId().toString());
+    }
+
+    /**
+     * Revelação manual pelo host, antes da revealAt. Só o dono do evento pode revelar.
+     * Idempotente: revelar um evento já revelado não republica a notificação.
+     */
+    @Transactional
+    public EventResponse revealAsHost(UUID eventId, UUID hostId) {
+        Event event = eventRepository.findById(eventId)
+                .orElseThrow(() -> new NotFoundException("Evento", eventId));
+
+        if (!event.getHostId().equals(hostId)) {
+            throw new ForbiddenException("Você não é o dono deste evento");
+        }
+
+        if (!event.isRevealed()) {
+            event.setStatus(EventStatus.REVEALED);
+            revealPublisher.publish(event.getId().toString(), event.getHostId().toString());
+        }
+        return toResponse(event);
     }
 
     public void checkAndRevealPending() {

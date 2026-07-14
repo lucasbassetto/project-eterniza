@@ -1,6 +1,7 @@
 package com.eterniza.event.controller;
 
 import com.eterniza.event.dto.CreateEventRequest;
+import com.eterniza.event.domain.EventStatus;
 import com.eterniza.event.repository.EventRepository;
 import com.eterniza.photo.domain.Photo;
 import com.eterniza.photo.domain.PhotoStatus;
@@ -89,6 +90,81 @@ class EventControllerTest {
         mockMvc.perform(get("/api/events/slug/{slug}", slug))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.photoCount").value(2));
+    }
+
+    // ─── Revelação manual: POST /api/events/{id}/reveal ───
+    @Test
+    void reveal_owner_returns200AndEventBecomesRevealed() throws Exception {
+        UUID eventId = createEvent("Evento a revelar");
+
+        mockMvc.perform(post("/api/events/{id}/reveal", eventId)
+                        .header("Authorization", "Bearer " + hostToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.status").value("REVEALED"));
+
+        assertThat(eventRepository.findById(eventId).orElseThrow().getStatus())
+                .isEqualTo(EventStatus.REVEALED);
+    }
+
+    @Test
+    void reveal_notOwner_returns403AndEventStaysActive() throws Exception {
+        UUID eventId = createEvent("Evento de outro host");
+        String intruderToken = jwtUtil.generateHostToken(UUID.randomUUID().toString(), "intruso@eterniza.com");
+
+        mockMvc.perform(post("/api/events/{id}/reveal", eventId)
+                        .header("Authorization", "Bearer " + intruderToken))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.success").value(false));
+
+        assertThat(eventRepository.findById(eventId).orElseThrow().getStatus())
+                .isEqualTo(EventStatus.ACTIVE);
+    }
+
+    @Test
+    void reveal_withoutAuthorizationHeader_returns401() throws Exception {
+        UUID eventId = createEvent("Evento sem token");
+
+        mockMvc.perform(post("/api/events/{id}/reveal", eventId))
+                .andExpect(status().isUnauthorized());
+
+        assertThat(eventRepository.findById(eventId).orElseThrow().getStatus())
+                .isEqualTo(EventStatus.ACTIVE);
+    }
+
+    @Test
+    void reveal_nonExistentEvent_returns404() throws Exception {
+        mockMvc.perform(post("/api/events/{id}/reveal", UUID.randomUUID())
+                        .header("Authorization", "Bearer " + hostToken))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void reveal_alreadyRevealed_isIdempotent() throws Exception {
+        UUID eventId = createEvent("Evento revelado 2x");
+
+        mockMvc.perform(post("/api/events/{id}/reveal", eventId)
+                        .header("Authorization", "Bearer " + hostToken))
+                .andExpect(status().isOk());
+
+        // Revelar de novo continua 200 e REVEALED
+        mockMvc.perform(post("/api/events/{id}/reveal", eventId)
+                        .header("Authorization", "Bearer " + hostToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("REVEALED"));
+    }
+
+    private UUID createEvent(String name) throws Exception {
+        CreateEventRequest req = new CreateEventRequest(
+                name, Instant.now().plus(7, ChronoUnit.DAYS), null);
+        MvcResult result = mockMvc.perform(post("/api/events")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header("Authorization", "Bearer " + hostToken)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        return UUID.fromString(objectMapper.readTree(result.getResponse().getContentAsString())
+                .get("data").get("id").asText());
     }
 
     private Photo photo(UUID eventId, String key) {
