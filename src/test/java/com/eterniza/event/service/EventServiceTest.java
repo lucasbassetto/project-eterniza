@@ -8,6 +8,7 @@ import com.eterniza.event.dto.CreateEventRequest;
 import com.eterniza.event.dto.EventResponse;
 import com.eterniza.event.messaging.RevealEventPublisher;
 import com.eterniza.event.repository.EventRepository;
+import com.eterniza.photo.repository.PhotoRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.BeforeEach;
 import org.mockito.Mock;
@@ -31,12 +32,15 @@ class EventServiceTest {
     private EventRepository eventRepository;
 
     @Mock
+    private PhotoRepository photoRepository;
+
+    @Mock
     private RevealEventPublisher revealPublisher;
 
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
-        eventService = new EventService(eventRepository, revealPublisher);
+        eventService = new EventService(eventRepository, photoRepository, revealPublisher);
         try {
             var field = EventService.class.getDeclaredField("webUrl");
             field.setAccessible(true);
@@ -76,6 +80,26 @@ class EventServiceTest {
         assertThat(response.photoCount()).isZero();
         assertThat(response.qrCodeUrl()).startsWith("http://localhost:3000/e/");
         verify(eventRepository).save(any(Event.class));
+    }
+
+    @Test
+    void toResponse_photoCountReflectsActualPhotosInTable() {
+        String slug = "event-slug";
+        UUID eventId = UUID.randomUUID();
+        Event event = Event.builder()
+                .id(eventId)
+                .hostId(UUID.randomUUID())
+                .name("Event")
+                .slug(slug)
+                .status(EventStatus.ACTIVE)
+                .build();
+        when(eventRepository.findBySlug(slug)).thenReturn(Optional.of(event));
+        // 3 fotos existem na tabela para este evento
+        when(photoRepository.countByEventId(eventId)).thenReturn(3L);
+
+        EventResponse response = eventService.findBySlug(slug);
+
+        assertThat(response.photoCount()).isEqualTo(3);
     }
 
     // ─── EVENT-04: Token claims (verify response has correct fields) ───

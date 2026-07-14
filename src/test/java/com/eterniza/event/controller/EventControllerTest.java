@@ -2,6 +2,9 @@ package com.eterniza.event.controller;
 
 import com.eterniza.event.dto.CreateEventRequest;
 import com.eterniza.event.repository.EventRepository;
+import com.eterniza.photo.domain.Photo;
+import com.eterniza.photo.domain.PhotoStatus;
+import com.eterniza.photo.repository.PhotoRepository;
 import com.eterniza.common.security.JwtUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -48,6 +51,7 @@ class EventControllerTest {
     @Autowired private MockMvc mockMvc;
     @Autowired private ObjectMapper objectMapper;
     @Autowired private EventRepository eventRepository;
+    @Autowired private PhotoRepository photoRepository;
     @Autowired private JwtUtil jwtUtil;
 
     private UUID hostId;
@@ -55,9 +59,46 @@ class EventControllerTest {
 
     @BeforeEach
     void setUp() {
+        photoRepository.deleteAll();
         eventRepository.deleteAll();
         hostId = UUID.randomUUID();
         hostToken = jwtUtil.generateHostToken(hostId.toString(), "host@eterniza.com");
+    }
+
+    // ─── photoCount reflete as fotos reais da tabela (não um contador denormalizado) ───
+    @Test
+    void findBySlug_eventWithPhotos_photoCountReflectsRealPhotos() throws Exception {
+        Instant futureTime = Instant.now().plus(7, ChronoUnit.DAYS);
+        CreateEventRequest req = new CreateEventRequest("Evento com fotos", futureTime, null);
+
+        MvcResult createResult = mockMvc.perform(post("/api/events")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header("Authorization", "Bearer " + hostToken)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.photoCount").value(0))
+                .andReturn();
+
+        var body = objectMapper.readTree(createResult.getResponse().getContentAsString()).get("data");
+        UUID eventId = UUID.fromString(body.get("id").asText());
+        String slug = body.get("slug").asText();
+
+        photoRepository.save(photo(eventId, "k1"));
+        photoRepository.save(photo(eventId, "k2"));
+
+        mockMvc.perform(get("/api/events/slug/{slug}", slug))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.photoCount").value(2));
+    }
+
+    private Photo photo(UUID eventId, String key) {
+        return Photo.builder()
+                .eventId(eventId)
+                .guestDeviceId("device-1")
+                .guestName("Ana")
+                .originalKey(key)
+                .status(PhotoStatus.READY)
+                .build();
     }
 
     // ─── EVENT-01: Create event with valid payload ───

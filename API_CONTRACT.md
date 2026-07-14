@@ -319,7 +319,7 @@ Público (sem token). É o coração do modelo de "revelação".
 | `status` | `ACTIVE` (fotos escondidas) ou `REVEALED` (galeria aberta) |
 | `revealAt` | Quando o evento será revelado automaticamente |
 | `guestCount` | ⚠️ **Sempre 0** — nunca é incrementado (ver §9) |
-| `photoCount` | ⚠️ **Sempre 0** — nunca é incrementado. Use `totalPhotos` da galeria para a contagem real. |
+| `photoCount` | ✅ Contagem **real** de fotos do evento (calculada da tabela de fotos). Útil para o host ver quantas fotos já foram tiradas sem chamar a galeria. |
 
 ### 6.2 GalleryResponse
 
@@ -396,7 +396,7 @@ Encontradas ao ler o código. Nenhuma delas impede o app de funcionar, mas mudam
 | ~~1~~ | ~~`photoUrls` retorna chaves, não URLs~~ | ✅ **CORRIGIDO** — a galeria já devolve URLs públicas completas. |
 | 2 | **`guestCount` nunca incrementa e `guestLimit` nunca é aplicado** | O limite de convidados **não é enforced**. Qualquer número de convidados entra. |
 | 3 | **A sessão de guest não valida se o evento existe** | É possível gerar um guestToken para um `eventId` inexistente. O app deve validar antes via `GET /api/events/slug/{slug}`. |
-| 4 | **`photoCount` no EventResponse é sempre 0** | Use `totalPhotos` da galeria para a contagem real. |
+| ~~4~~ | ~~`photoCount` no EventResponse é sempre 0~~ | ✅ **CORRIGIDO** — agora reflete a contagem real de fotos. |
 | 5 | **Não há endpoint de "revelar agora"** | A revelação é só por tempo (scheduler de 60s). Sem botão de revelar manual. |
 | 6 | **Não há endpoint para listar/apagar uma foto individual** | Só a galeria agregada. Sem "apagar minha foto". |
 | 7 | **Erros de validação vêm como string única concatenada** | Não dá para destacar o campo com erro no formulário sem fazer parsing da string. |

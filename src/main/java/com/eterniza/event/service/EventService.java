@@ -8,6 +8,7 @@ import com.eterniza.event.dto.CreateEventRequest;
 import com.eterniza.event.dto.EventResponse;
 import com.eterniza.event.messaging.RevealEventPublisher;
 import com.eterniza.event.repository.EventRepository;
+import com.eterniza.photo.repository.PhotoRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -22,6 +23,7 @@ import java.util.UUID;
 public class EventService {
 
     private final EventRepository eventRepository;
+    private final PhotoRepository photoRepository;
     private final RevealEventPublisher revealPublisher;
 
     @Value("${eterniza.app.web-url}")
@@ -74,9 +76,12 @@ public class EventService {
     }
 
     private EventResponse toResponse(Event e) {
+        // Contagem real vinda da tabela de fotos (fonte da verdade), não de um
+        // contador denormalizado no evento — não deriva ao criar/remover fotos.
+        int photoCount = (int) photoRepository.countByEventId(e.getId());
         return new EventResponse(e.getId(), e.getName(), e.getSlug(),
                 "%s/e/%s".formatted(webUrl, e.getSlug()),
                 e.getStatus(), e.getRevealAt(),
-                e.getGuestLimit(), e.getGuestCount(), e.getPhotoCount(), e.getCreatedAt());
+                e.getGuestLimit(), e.getGuestCount(), photoCount, e.getCreatedAt());
     }
 }

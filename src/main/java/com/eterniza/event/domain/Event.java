@@ -42,9 +42,8 @@ public class Event {
     @Builder.Default
     private int guestCount = 0;
 
-    @Column(nullable = false)
-    @Builder.Default
-    private int photoCount = 0;
+    // photoCount não é armazenado: é calculado a partir da tabela de fotos
+    // (fonte da verdade), evitando deriva quando fotos são criadas/removidas.
 
     @CreationTimestamp
     private Instant createdAt;
