@@ -1,7 +1,9 @@
 package com.eterniza.photo.controller;
 
 import com.eterniza.common.dto.ApiResponse;
+import com.eterniza.common.security.JwtUtil;
 import com.eterniza.event.repository.EventRepository;
+import com.eterniza.photo.dto.EventPhotoResponse;
 import com.eterniza.photo.dto.GalleryResponse;
 import com.eterniza.photo.dto.PhotoUploadResponse;
 import com.eterniza.photo.service.PhotoService;
@@ -14,6 +16,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -24,6 +27,7 @@ public class PhotoController {
 
     private final PhotoService photoService;
     private final EventRepository eventRepository;
+    private final JwtUtil jwtUtil;
 
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
@@ -42,5 +46,24 @@ public class PhotoController {
                 .map(e -> e.getStatus().name().equals("REVEALED"))
                 .orElse(false);
         return ApiResponse.ok(photoService.getGallery(eventId, revealed));
+    }
+
+    @GetMapping("/event/{eventId}")
+    @Operation(summary = "Listar fotos do evento para moderação (somente o host dono)")
+    public ApiResponse<List<EventPhotoResponse>> listForHost(
+            @PathVariable String eventId,
+            @RequestHeader("Authorization") String auth) {
+        UUID hostId = UUID.fromString(jwtUtil.extractSubject(auth.replace("Bearer ", "")));
+        return ApiResponse.ok(photoService.listForHost(eventId, hostId));
+    }
+
+    @DeleteMapping("/{photoId}")
+    @Operation(summary = "Apagar foto (somente o host dono do evento)")
+    public ApiResponse<Void> delete(
+            @PathVariable UUID photoId,
+            @RequestHeader("Authorization") String auth) {
+        UUID hostId = UUID.fromString(jwtUtil.extractSubject(auth.replace("Bearer ", "")));
+        photoService.deleteAsHost(photoId, hostId);
+        return ApiResponse.ok("Foto apagada", null);
     }
 }

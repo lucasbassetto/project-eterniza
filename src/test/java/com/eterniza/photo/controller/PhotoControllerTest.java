@@ -34,6 +34,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @SpringBootTest
@@ -222,6 +223,98 @@ class PhotoControllerTest {
                 .andExpect(status().isNotFound());
 
         assertThat(photoRepository.findAll()).isEmpty();
+    }
+
+    // ─── Moderação: DELETE /api/photos/{photoId} (host) ───
+    @Test
+    void delete_hostOwner_hidesPhotoFromGalleryButPoseStaysSpent() throws Exception {
+        UUID hostId = UUID.randomUUID();
+        Event limited = eventRepository.save(Event.builder()
+                .hostId(hostId)
+                .name("Festa moderada")
+                .slug("moderada-" + UUID.randomUUID().toString().substring(0, 8))
+                .status(EventStatus.ACTIVE)
+                .revealAt(Instant.now().plus(1, ChronoUnit.DAYS))
+                .photoLimitPerGuest(1)
+                .build());
+        String hostToken = jwtUtil.generateHostToken(hostId.toString(), "host@eterniza.com");
+        String guest = jwtUtil.generateGuestToken("device-abc", "Ana", limited.getId().toString());
+
+        mockMvc.perform(multipart("/api/photos/upload")
+                        .file(jpeg(new byte[]{1, 2, 3}))
+                        .param("eventId", limited.getId().toString())
+                        .header("Authorization", "Bearer " + guest))
+                .andExpect(status().isCreated());
+        UUID photoId = photoRepository.findAll().get(0).getId();
+
+        mockMvc.perform(delete("/api/photos/{photoId}", photoId)
+                        .header("Authorization", "Bearer " + hostToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+
+        // Some da galeria (soft delete)...
+        mockMvc.perform(get("/api/photos/gallery/{eventId}", limited.getId().toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalPhotos").value(0));
+
+        // ...mas a pose continua gasta: novo upload do mesmo device ainda é 400
+        mockMvc.perform(multipart("/api/photos/upload")
+                        .file(jpeg(new byte[]{4, 5, 6}))
+                        .param("eventId", limited.getId().toString())
+                        .header("Authorization", "Bearer " + guest))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Você já usou todas as suas 1 fotos neste evento"));
+
+        assertThat(photoRepository.findById(photoId).orElseThrow().getStatus())
+                .isEqualTo(PhotoStatus.DELETED);
+    }
+
+    @Test
+    void delete_notOwner_returns403AndPhotoStays() throws Exception {
+        Photo photo = photoRepository.save(readyPhoto("orig-x", null));
+        String intruderToken = jwtUtil.generateHostToken(UUID.randomUUID().toString(), "intruso@eterniza.com");
+
+        mockMvc.perform(delete("/api/photos/{photoId}", photo.getId())
+                        .header("Authorization", "Bearer " + intruderToken))
+                .andExpect(status().isForbidden());
+
+        assertThat(photoRepository.findById(photo.getId()).orElseThrow().getStatus())
+                .isEqualTo(PhotoStatus.READY);
+    }
+
+    @Test
+    void delete_nonExistentPhoto_returns404() throws Exception {
+        String hostToken = jwtUtil.generateHostToken(UUID.randomUUID().toString(), "host@eterniza.com");
+
+        mockMvc.perform(delete("/api/photos/{photoId}", UUID.randomUUID())
+                        .header("Authorization", "Bearer " + hostToken))
+                .andExpect(status().isNotFound());
+    }
+
+    // ─── Moderação: GET /api/photos/event/{eventId} (host) ───
+    @Test
+    void listForHost_beforeReveal_returnsMetadataWithNullUrls() throws Exception {
+        Event event = eventRepository.findById(eventId).orElseThrow();
+        String hostToken = jwtUtil.generateHostToken(event.getHostId().toString(), "host@eterniza.com");
+        photoRepository.save(readyPhoto("orig-1", null));
+
+        mockMvc.perform(get("/api/photos/event/{eventId}", eventId.toString())
+                        .header("Authorization", "Bearer " + hostToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(1))
+                .andExpect(jsonPath("$.data[0].photoId").exists())
+                .andExpect(jsonPath("$.data[0].guestName").value("Ana"))
+                // Antes da revelação nem o host vê a imagem
+                .andExpect(jsonPath("$.data[0].url").isEmpty());
+    }
+
+    @Test
+    void listForHost_notOwner_returns403() throws Exception {
+        String intruderToken = jwtUtil.generateHostToken(UUID.randomUUID().toString(), "intruso@eterniza.com");
+
+        mockMvc.perform(get("/api/photos/event/{eventId}", eventId.toString())
+                        .header("Authorization", "Bearer " + intruderToken))
+                .andExpect(status().isForbidden());
     }
 
     // ─── IT-PHOTO-04: Gallery visibility (public) ───

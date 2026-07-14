@@ -210,10 +210,13 @@ Resposta esperada (201):
   "success": true,
   "data": {
     "photoId": "b4f9...",
-    "message": "Foto recebida!"
+    "message": "Foto recebida!",
+    "photosRemaining": 9
   }
 }
 ```
+
+`photosRemaining` = quantas fotos este convidado ainda pode enviar no evento (limite `photoLimitPerGuest`).
 
 O filtro é aplicado **ao vivo no aplicativo** (client-side, estilo Instagram) antes do envio — o convidado escolhe o filtro que quiser na câmera. O servidor recebe a imagem já finalizada, apenas armazena e grava a foto com `status = READY` na hora. Não há processamento de imagem no servidor — por isso a foto já nasce pronta e **nunca muda de status depois** (o retorno é `201 Created`, não `202 Accepted`, já que não há nada sendo processado em background).
 
@@ -241,6 +244,42 @@ Resposta (200):
 
 - Enquanto o evento **não foi revelado** (`status = ACTIVE`): `revealed = false` e `photoUrls` sempre vazio, mesmo com fotos prontas — só a contagem em `totalPhotos` aparece.
 - Depois de revelado (`status = REVEALED`): `revealed = true` e `photoUrls` traz as URLs das fotos com `status = READY`.
+
+---
+
+## Passo 9 — Listar fotos do evento para moderação (host dono)
+
+**GET** `/api/photos/event/{eventId}`
+
+Headers: `Authorization: Bearer <hostToken>` (precisa ser o **dono** do evento).
+
+Resposta (200):
+```json
+{
+  "success": true,
+  "data": [
+    { "photoId": "b4f9...", "guestName": "Ana", "createdAt": "...", "url": null }
+  ]
+}
+```
+
+- Antes da revelação `url` vem `null` — nem o host vê as imagens; modera pelos metadados.
+- Depois da revelação `url` traz a URL pública.
+- Host que não é dono → 403. Evento inexistente → 404.
+
+---
+
+## Passo 10 — Apagar foto (moderação, host dono)
+
+**DELETE** `/api/photos/{photoId}`
+
+Headers: `Authorization: Bearer <hostToken>` (dono do evento da foto). Use o `photoId` do Passo 9.
+
+Resposta (200): `message = "Foto apagada"`.
+
+- Soft delete: a foto some da galeria e do `photoCount`; o arquivo é removido do storage.
+- A "pose" do convidado **não é devolvida**: se ele estava no limite, continua sem poder enviar outra.
+- Idempotente: apagar de novo continua 200. Não dono → 403. Foto inexistente → 404.
 
 ---
 
@@ -274,4 +313,7 @@ Passo 6 (Guest session) ──► guestToken ──► Passo 7 (Upload photo)
 |---|---|
 | `POST /api/events` | hostToken |
 | `GET /api/events/my` | hostToken |
+| `POST /api/events/{id}/reveal` | hostToken (só o dono) |
 | `POST /api/photos/upload` | guestToken |
+| `GET /api/photos/event/{eventId}` | hostToken (só o dono) |
+| `DELETE /api/photos/{photoId}` | hostToken (só o dono do evento) |

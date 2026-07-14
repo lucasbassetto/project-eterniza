@@ -235,7 +235,50 @@
               ]
             },
             "url": { "raw": "{{baseUrl}}/api/photos/upload", "host": [ "{{baseUrl}}" ], "path": [ "api", "photos", "upload" ] },
-            "description": "Envia foto (guest). 201 Created. data = { photoId, message }.\nO filtro é aplicado ao vivo no app (client-side, estilo Instagram) antes do upload; o servidor apenas armazena a imagem final e grava a foto como READY. Sem processamento no servidor.\nMultipart: campo 'file' (imagem já filtrada) + 'eventId'. Header Authorization: Bearer {{guestToken}}.\n⚠️ Selecione um arquivo no campo 'file' antes de enviar (o Postman não guarda o caminho).\nRegras: vazio → 400 'Arquivo vazio'; tipo inválido → 400 'Formato inválido...'; >20MB → 400 'Arquivo muito grande...'; sem token → 401."
+            "description": "Envia foto (guest). 201 Created. data = { photoId, message, photosRemaining }.\nO filtro é aplicado ao vivo no app (client-side, estilo Instagram) antes do upload; o servidor apenas armazena a imagem final e grava a foto como READY. Sem processamento no servidor.\nMultipart: campo 'file' (imagem já filtrada) + 'eventId'. Header Authorization: Bearer {{guestToken}}.\n⚠️ Selecione um arquivo no campo 'file' antes de enviar (o Postman não guarda o caminho).\nRegras: vazio → 400 'Arquivo vazio'; tipo inválido → 400 'Formato inválido...'; >20MB → 400 'Arquivo muito grande...'; limite de fotos do convidado atingido → 400 'Você já usou todas as suas N fotos neste evento'; eventId inexistente → 404; sem token → 401."
+          }
+        },
+        {
+          "name": "GET Photos do evento  (protegido: host dono)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "var j = pm.response.json();",
+                  "pm.test('data é lista', () => pm.expect(j.data).to.be.an('array'));",
+                  "if (j.data.length > 0) { pm.collectionVariables.set('photoId', j.data[0].photoId); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [ { "key": "Authorization", "value": "Bearer {{hostToken}}" } ],
+            "url": { "raw": "{{baseUrl}}/api/photos/event/{{eventId}}", "host": [ "{{baseUrl}}" ], "path": [ "api", "photos", "event", "{{eventId}}" ] },
+            "description": "Lista as fotos do evento para moderação (host dono). 200 OK.\ndata = [{ photoId, guestName, createdAt, url }].\nAntes da revelação url vem null (nem o host vê as imagens). Depois da revelação, url traz a URL pública.\nGuarda o primeiro photoId na variável {{photoId}} para o DELETE.\n403 se não for o dono; 404 se o evento não existir."
+          }
+        },
+        {
+          "name": "DELETE Photo  (protegido: host dono)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [ { "key": "Authorization", "value": "Bearer {{hostToken}}" } ],
+            "url": { "raw": "{{baseUrl}}/api/photos/{{photoId}}", "host": [ "{{baseUrl}}" ], "path": [ "api", "photos", "{{photoId}}" ] },
+            "description": "Apaga foto (moderação, host dono do evento). 200 OK, message 'Foto apagada'.\nSoft delete: some da galeria e do photoCount, arquivo removido do storage, mas a pose do convidado continua gasta (não devolve o direito de nova foto).\nIdempotente: apagar de novo continua 200.\n403 se não for o dono; 404 se a foto não existir.\nUse {{photoId}} preenchido pelo 'GET Photos do evento'."
           }
         },
         {

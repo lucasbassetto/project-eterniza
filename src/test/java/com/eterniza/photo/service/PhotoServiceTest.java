@@ -109,6 +109,8 @@ class PhotoServiceTest {
 
         assertThat(response.photoId()).isEqualTo(photoId);
         assertThat(response.message()).isEqualTo("Foto recebida!");
+        // Limite 10, já tinha 3, esta é a 4ª → restam 6
+        assertThat(response.photosRemaining()).isEqualTo(6);
         verify(storageService).upload(contains("events/" + eventId + "/originals/"), eq(file));
 
         // A foto é persistida já pronta (o app enviou a imagem final filtrada) —
@@ -172,6 +174,148 @@ class PhotoServiceTest {
                 .isInstanceOf(NotFoundException.class);
 
         verify(storageService, never()).upload(anyString(), any());
+    }
+
+    // ─── Moderação: deleteAsHost ───
+    @Test
+    void deleteAsHost_owner_softDeletesAndRemovesFromStorage() {
+        UUID photoId = UUID.randomUUID();
+        UUID eventId = UUID.randomUUID();
+        UUID hostId = UUID.randomUUID();
+        Photo photo = Photo.builder()
+                .id(photoId).eventId(eventId).guestDeviceId("device-1").guestName("Ana")
+                .originalKey("orig-1").filteredKey("filt-1").status(PhotoStatus.READY)
+                .build();
+        Event event = Event.builder().id(eventId).hostId(hostId).build();
+        when(photoRepository.findById(photoId)).thenReturn(Optional.of(photo));
+        when(eventRepository.findById(eventId)).thenReturn(Optional.of(event));
+
+        photoService.deleteAsHost(photoId, hostId);
+
+        assertThat(photo.getStatus()).isEqualTo(PhotoStatus.DELETED);
+        verify(storageService).delete("orig-1");
+        verify(storageService).delete("filt-1");
+    }
+
+    @Test
+    void deleteAsHost_notOwner_throwsForbiddenAndKeepsPhoto() {
+        UUID photoId = UUID.randomUUID();
+        UUID eventId = UUID.randomUUID();
+        Photo photo = Photo.builder()
+                .id(photoId).eventId(eventId).guestDeviceId("device-1").guestName("Ana")
+                .originalKey("orig-1").status(PhotoStatus.READY)
+                .build();
+        Event event = Event.builder().id(eventId).hostId(UUID.randomUUID()).build();
+        when(photoRepository.findById(photoId)).thenReturn(Optional.of(photo));
+        when(eventRepository.findById(eventId)).thenReturn(Optional.of(event));
+
+        assertThatThrownBy(() -> photoService.deleteAsHost(photoId, UUID.randomUUID()))
+                .isInstanceOf(com.eterniza.common.exception.ForbiddenException.class);
+
+        assertThat(photo.getStatus()).isEqualTo(PhotoStatus.READY);
+        verify(storageService, never()).delete(anyString());
+    }
+
+    @Test
+    void deleteAsHost_photoNotFound_throwsNotFound() {
+        UUID photoId = UUID.randomUUID();
+        when(photoRepository.findById(photoId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> photoService.deleteAsHost(photoId, UUID.randomUUID()))
+                .isInstanceOf(NotFoundException.class);
+    }
+
+    @Test
+    void deleteAsHost_alreadyDeleted_isIdempotentAndSkipsStorage() {
+        UUID photoId = UUID.randomUUID();
+        UUID eventId = UUID.randomUUID();
+        UUID hostId = UUID.randomUUID();
+        Photo photo = Photo.builder()
+                .id(photoId).eventId(eventId).guestDeviceId("device-1").guestName("Ana")
+                .originalKey("orig-1").status(PhotoStatus.DELETED)
+                .build();
+        Event event = Event.builder().id(eventId).hostId(hostId).build();
+        when(photoRepository.findById(photoId)).thenReturn(Optional.of(photo));
+        when(eventRepository.findById(eventId)).thenReturn(Optional.of(event));
+
+        photoService.deleteAsHost(photoId, hostId);
+
+        verify(storageService, never()).delete(anyString());
+    }
+
+    @Test
+    void deleteAsHost_storageFailure_stillSoftDeletes() {
+        UUID photoId = UUID.randomUUID();
+        UUID eventId = UUID.randomUUID();
+        UUID hostId = UUID.randomUUID();
+        Photo photo = Photo.builder()
+                .id(photoId).eventId(eventId).guestDeviceId("device-1").guestName("Ana")
+                .originalKey("orig-1").status(PhotoStatus.READY)
+                .build();
+        Event event = Event.builder().id(eventId).hostId(hostId).build();
+        when(photoRepository.findById(photoId)).thenReturn(Optional.of(photo));
+        when(eventRepository.findById(eventId)).thenReturn(Optional.of(event));
+        doThrow(new RuntimeException("bucket fora")).when(storageService).delete(anyString());
+
+        // A falha do storage não desfaz a moderação — a foto some da galeria
+        assertThatCode(() -> photoService.deleteAsHost(photoId, hostId))
+                .doesNotThrowAnyException();
+        assertThat(photo.getStatus()).isEqualTo(PhotoStatus.DELETED);
+    }
+
+    // ─── Moderação: listForHost ───
+    @Test
+    void listForHost_beforeReveal_returnsMetadataWithoutUrls() {
+        UUID eventId = UUID.randomUUID();
+        UUID hostId = UUID.randomUUID();
+        Event event = Event.builder()
+                .id(eventId).hostId(hostId).status(com.eterniza.event.domain.EventStatus.ACTIVE)
+                .build();
+        Photo photo = Photo.builder()
+                .id(UUID.randomUUID()).eventId(eventId).guestDeviceId("d1").guestName("Ana")
+                .originalKey("orig-1").status(PhotoStatus.READY)
+                .build();
+        when(eventRepository.findById(eventId)).thenReturn(Optional.of(event));
+        when(photoRepository.findByEventIdAndStatus(eventId, PhotoStatus.READY))
+                .thenReturn(List.of(photo));
+
+        var photos = photoService.listForHost(eventId.toString(), hostId);
+
+        assertThat(photos).hasSize(1);
+        assertThat(photos.get(0).guestName()).isEqualTo("Ana");
+        // Antes da revelação nem o host vê a imagem — modera pelos metadados
+        assertThat(photos.get(0).url()).isNull();
+    }
+
+    @Test
+    void listForHost_afterReveal_returnsUrls() {
+        UUID eventId = UUID.randomUUID();
+        UUID hostId = UUID.randomUUID();
+        Event event = Event.builder()
+                .id(eventId).hostId(hostId).status(com.eterniza.event.domain.EventStatus.REVEALED)
+                .build();
+        Photo photo = Photo.builder()
+                .id(UUID.randomUUID()).eventId(eventId).guestDeviceId("d1").guestName("Ana")
+                .originalKey("orig-1").filteredKey(null).status(PhotoStatus.READY)
+                .build();
+        when(eventRepository.findById(eventId)).thenReturn(Optional.of(event));
+        when(photoRepository.findByEventIdAndStatus(eventId, PhotoStatus.READY))
+                .thenReturn(List.of(photo));
+        when(storageService.publicUrlFor("orig-1")).thenReturn("https://cdn.eterniza.test/orig-1");
+
+        var photos = photoService.listForHost(eventId.toString(), hostId);
+
+        assertThat(photos.get(0).url()).isEqualTo("https://cdn.eterniza.test/orig-1");
+    }
+
+    @Test
+    void listForHost_notOwner_throwsForbidden() {
+        UUID eventId = UUID.randomUUID();
+        Event event = Event.builder().id(eventId).hostId(UUID.randomUUID()).build();
+        when(eventRepository.findById(eventId)).thenReturn(Optional.of(event));
+
+        assertThatThrownBy(() -> photoService.listForHost(eventId.toString(), UUID.randomUUID()))
+                .isInstanceOf(com.eterniza.common.exception.ForbiddenException.class);
     }
 
     @Test

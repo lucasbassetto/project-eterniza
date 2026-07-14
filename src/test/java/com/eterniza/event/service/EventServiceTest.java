@@ -8,6 +8,7 @@ import com.eterniza.event.dto.CreateEventRequest;
 import com.eterniza.event.dto.EventResponse;
 import com.eterniza.event.messaging.RevealEventPublisher;
 import com.eterniza.event.repository.EventRepository;
+import com.eterniza.photo.domain.PhotoStatus;
 import com.eterniza.photo.repository.PhotoRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.BeforeEach;
@@ -93,8 +94,8 @@ class EventServiceTest {
                 .status(EventStatus.ACTIVE)
                 .build();
         when(eventRepository.findBySlug(slug)).thenReturn(Optional.of(event));
-        // 3 fotos existem na tabela para este evento
-        when(photoRepository.countByEventId(eventId)).thenReturn(3L);
+        // 3 fotos READY existem na tabela para este evento (DELETED não conta)
+        when(photoRepository.countByEventIdAndStatus(eventId, PhotoStatus.READY)).thenReturn(3L);
 
         EventResponse response = eventService.findBySlug(slug);
 

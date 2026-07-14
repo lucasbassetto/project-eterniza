@@ -1,16 +1,19 @@
 package com.eterniza.photo.service;
 
 import com.eterniza.common.exception.BusinessException;
+import com.eterniza.common.exception.ForbiddenException;
 import com.eterniza.common.exception.NotFoundException;
 import com.eterniza.common.security.JwtUtil;
 import com.eterniza.event.domain.Event;
 import com.eterniza.event.repository.EventRepository;
 import com.eterniza.photo.domain.Photo;
 import com.eterniza.photo.domain.PhotoStatus;
+import com.eterniza.photo.dto.EventPhotoResponse;
 import com.eterniza.photo.dto.GalleryResponse;
 import com.eterniza.photo.dto.PhotoUploadResponse;
 import com.eterniza.photo.repository.PhotoRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -19,6 +22,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.UUID;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class PhotoService {
@@ -67,7 +71,60 @@ public class PhotoService {
                 .status(PhotoStatus.READY)
                 .build());
 
-        return new PhotoUploadResponse(photo.getId(), "Foto recebida!");
+        int remaining = event.getPhotoLimitPerGuest() - (int) (photosTaken + 1);
+        return new PhotoUploadResponse(photo.getId(), "Foto recebida!", remaining);
+    }
+
+    /**
+     * Fotos do evento vistas pelo host (moderação). Antes da revelação as URLs
+     * vêm nulas — a surpresa vale até para o host; ele modera pelos metadados.
+     */
+    public List<EventPhotoResponse> listForHost(String eventId, UUID hostId) {
+        Event event = eventRepository.findById(UUID.fromString(eventId))
+                .orElseThrow(() -> new NotFoundException("Evento", eventId));
+        if (!event.getHostId().equals(hostId)) {
+            throw new ForbiddenException("Você não é o dono deste evento");
+        }
+
+        return photoRepository.findByEventIdAndStatus(event.getId(), PhotoStatus.READY)
+                .stream()
+                .map(p -> new EventPhotoResponse(
+                        p.getId(), p.getGuestName(), p.getCreatedAt(),
+                        event.isRevealed()
+                                ? storageService.publicUrlFor(
+                                        p.getFilteredKey() != null ? p.getFilteredKey() : p.getOriginalKey())
+                                : null))
+                .toList();
+    }
+
+    /**
+     * Moderação: só o host dono do evento apaga fotos. Soft delete — a foto some
+     * da galeria, mas a linha permanece e a "pose" do convidado continua gasta.
+     * Idempotente: apagar uma foto já apagada não faz nada.
+     */
+    @Transactional
+    public void deleteAsHost(UUID photoId, UUID hostId) {
+        Photo photo = photoRepository.findById(photoId)
+                .orElseThrow(() -> new NotFoundException("Foto", photoId));
+        Event event = eventRepository.findById(photo.getEventId())
+                .orElseThrow(() -> new NotFoundException("Evento", photo.getEventId()));
+        if (!event.getHostId().equals(hostId)) {
+            throw new ForbiddenException("Você não é o dono deste evento");
+        }
+        if (photo.getStatus() == PhotoStatus.DELETED) return;
+
+        photo.setStatus(PhotoStatus.DELETED);
+
+        // Remoção do storage é best-effort: se o bucket falhar, a foto já não
+        // aparece mais na galeria (status DELETED) e o objeto órfão não vaza.
+        try {
+            storageService.delete(photo.getOriginalKey());
+            if (photo.getFilteredKey() != null) {
+                storageService.delete(photo.getFilteredKey());
+            }
+        } catch (Exception e) {
+            log.error("Falha ao remover do storage os arquivos da foto {} — a foto já está oculta da galeria", photoId, e);
+        }
     }
 
     public GalleryResponse getGallery(String eventId, boolean isRevealed) {

@@ -8,6 +8,7 @@ import com.eterniza.event.dto.CreateEventRequest;
 import com.eterniza.event.dto.EventResponse;
 import com.eterniza.event.messaging.RevealEventPublisher;
 import com.eterniza.event.repository.EventRepository;
+import com.eterniza.photo.domain.PhotoStatus;
 import com.eterniza.photo.repository.PhotoRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -88,7 +89,8 @@ public class EventService {
     private EventResponse toResponse(Event e) {
         // Contagem real vinda da tabela de fotos (fonte da verdade), não de um
         // contador denormalizado no evento — não deriva ao criar/remover fotos.
-        int photoCount = (int) photoRepository.countByEventId(e.getId());
+        // Só READY: fotos moderadas (DELETED) não aparecem na contagem pública.
+        int photoCount = (int) photoRepository.countByEventIdAndStatus(e.getId(), PhotoStatus.READY);
         return new EventResponse(e.getId(), e.getName(), e.getSlug(),
                 "%s/e/%s".formatted(webUrl, e.getSlug()),
                 e.getStatus(), e.getRevealAt(),
