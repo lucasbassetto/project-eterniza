@@ -93,7 +93,7 @@ class PhotoControllerTest {
                         .file(jpeg(new byte[]{1, 2, 3, 4}))
                         .param("eventId", eventId.toString())
                         .header("Authorization", "Bearer " + guestToken))
-                .andExpect(status().isAccepted())
+                .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.photoId").exists())
                 .andExpect(jsonPath("$.data.message").exists());

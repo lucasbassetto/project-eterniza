@@ -17,7 +17,7 @@ Fase 6 implements the photo upload and gallery system for Eterniza. Guests uploa
 - Guest display name extracted from JWT "displayName" claim
 - Photo (already filtered by the app) stored in R2 at `events/{eventId}/originals/{photoId}.jpg`
 - Photo record created with **status=READY** (no server-side processing step)
-- Returns 202 ACCEPTED with photoId and "Foto recebida!" message
+- Returns 201 CREATED with photoId and "Foto recebida!" message
 - Empty file rejected with 400 + "Arquivo vazio"
 - Invalid content type (not jpeg/png/webp) rejected with 400 + "Formato inválido..."
 - File size > 20MB rejected with 400 + "Arquivo muito grande..."

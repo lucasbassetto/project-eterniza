@@ -217,7 +217,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('status 202', () => pm.response.to.have.status(202));",
+                  "pm.test('status 201', () => pm.response.to.have.status(201));",
                   "var j = pm.response.json();",
                   "pm.test('retorna photoId', () => pm.expect(j.data.photoId).to.be.a('string'));"
                 ]
@@ -235,7 +235,7 @@
               ]
             },
             "url": { "raw": "{{baseUrl}}/api/photos/upload", "host": [ "{{baseUrl}}" ], "path": [ "api", "photos", "upload" ] },
-            "description": "Envia foto (guest). 202 Accepted. data = { photoId, message }.\nO filtro é aplicado ao vivo no app (client-side, estilo Instagram) antes do upload; o servidor apenas armazena a imagem final e grava a foto como READY. Sem processamento no servidor.\nMultipart: campo 'file' (imagem já filtrada) + 'eventId'. Header Authorization: Bearer {{guestToken}}.\n⚠️ Selecione um arquivo no campo 'file' antes de enviar (o Postman não guarda o caminho).\nRegras: vazio → 400 'Arquivo vazio'; tipo inválido → 400 'Formato inválido...'; >20MB → 400 'Arquivo muito grande...'; sem token → 401."
+            "description": "Envia foto (guest). 201 Created. data = { photoId, message }.\nO filtro é aplicado ao vivo no app (client-side, estilo Instagram) antes do upload; o servidor apenas armazena a imagem final e grava a foto como READY. Sem processamento no servidor.\nMultipart: campo 'file' (imagem já filtrada) + 'eventId'. Header Authorization: Bearer {{guestToken}}.\n⚠️ Selecione um arquivo no campo 'file' antes de enviar (o Postman não guarda o caminho).\nRegras: vazio → 400 'Arquivo vazio'; tipo inválido → 400 'Formato inválido...'; >20MB → 400 'Arquivo muito grande...'; sem token → 401."
           }
         },
         {

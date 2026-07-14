@@ -26,7 +26,7 @@ public class PhotoController {
     private final EventRepository eventRepository;
 
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @ResponseStatus(HttpStatus.ACCEPTED)
+    @ResponseStatus(HttpStatus.CREATED)
     @Operation(summary = "Enviar foto (guest)")
     public ApiResponse<PhotoUploadResponse> upload(
             @RequestParam("file") MultipartFile file,

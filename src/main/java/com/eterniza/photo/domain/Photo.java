@@ -24,7 +24,7 @@ public class Photo {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     @Builder.Default
-    private PhotoStatus status = PhotoStatus.PROCESSING;
+    private PhotoStatus status = PhotoStatus.READY;
 
     @CreationTimestamp private Instant createdAt;
 }

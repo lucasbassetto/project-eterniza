@@ -19,9 +19,9 @@ Auth and Event flows already have integration coverage (`AuthControllerTest`,
 
 ### IT-PHOTO-01: Upload endpoint (happy path)
 - `POST /api/photos/upload` with multipart `file`, `eventId` param, and a valid
-  guest `Authorization: Bearer <token>` returns **202 ACCEPTED**
+  guest `Authorization: Bearer <token>` returns **201 CREATED**
 - Response body: `success=true`, `data.photoId` present, `data.message` present
-- A `Photo` row is persisted with status `PROCESSING`, correct `eventId`,
+- A `Photo` row is persisted with status `READY`, correct `eventId`,
   `guestDeviceId` (from JWT subject), `guestName` (from JWT `displayName`), and
   `originalKey` matching `events/{eventId}/originals/*.jpg`
 - External I/O is isolated: `StorageService` (R2) and `RabbitTemplate` are
@@ -64,5 +64,5 @@ docker run --rm \
 
 ## Test Coverage
 
-- **PhotoControllerTest**: upload 202 + persistence, upload 401 (no auth),
+- **PhotoControllerTest**: upload 201 + persistence, upload 401 (no auth),
   upload 400 (empty / invalid type), gallery public visibility (revealed vs not)

@@ -206,7 +206,7 @@ Regras:
 - Arquivo maior que 20MB → 400 "Arquivo muito grande. Máximo 20MB"
 - Sem header `Authorization` → 401
 
-Resposta esperada (202):
+Resposta esperada (201):
 ```json
 {
   "success": true,
@@ -217,7 +217,7 @@ Resposta esperada (202):
 }
 ```
 
-O filtro é aplicado **ao vivo no aplicativo** (client-side, estilo Instagram) antes do envio — o convidado escolhe o filtro que quiser na câmera. O servidor recebe a imagem já finalizada, apenas armazena e grava a foto com `status = READY` na hora. Não há processamento de imagem no servidor.
+O filtro é aplicado **ao vivo no aplicativo** (client-side, estilo Instagram) antes do envio — o convidado escolhe o filtro que quiser na câmera. O servidor recebe a imagem já finalizada, apenas armazena e grava a foto com `status = READY` na hora. Não há processamento de imagem no servidor — por isso a foto já nasce pronta e **nunca muda de status depois** (o retorno é `201 Created`, não `202 Accepted`, já que não há nada sendo processado em background).
 
 ---
 
