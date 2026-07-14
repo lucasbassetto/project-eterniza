@@ -27,7 +27,7 @@ public class FilmFilterService {
         }
     }
 
-    private List<String> buildCommand(String in, String out, String style) {
+    List<String> buildCommand(String in, String out, String style) {
         return switch (style) {
             case "VINTAGE"     -> List.of("convert", in, "-modulate", "100,80,100", "-colorize", "10,5,0", "-contrast-stretch", "0.5%", out);
             case "BLACK_WHITE" -> List.of("convert", in, "-colorspace", "Gray", "-contrast-stretch", "1%", out);

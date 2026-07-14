@@ -1,9 +1,11 @@
 # Fase 6 Validation
 
-**Date**: 2026-07-13
+**Date**: 2026-07-13 (revised — discrimination sensor re-run empirically)
 **Spec**: `.specs/features/fase6-pacote-photo/spec.md`
-**Diff range**: HEAD~2..HEAD (commits e1d3b33, 689acaf)
+**Diff range**: HEAD~2..HEAD (commits e1d3b33, 689acaf) + hardening pass (PhotoProcessingConsumerTest, FilmFilterServiceTest, direct RabbitMQ verify)
 **Verifier**: independent analysis (author ≠ verifier)
+
+> **Correction note**: The original report marked this feature CONDITIONAL PASS on the basis that 2 discrimination mutations "survived". That result was produced by *reasoning about* the mutations, not by actually applying them and running the suite. When re-run empirically (mutation applied to source → `mvn test`), **both mutations were killed by the existing `PhotoServiceTest`** (mutation 1: 4 test failures; mutation 2: 2 test failures). The real gaps were *absent coverage* (PhotoProcessingConsumer, FilmFilterService, direct RabbitMQ publish), now closed. See revised Discrimination Sensor section below.
 
 ---
 
@@ -33,7 +35,7 @@
 | PHOTO-01: Guest name from JWT.displayName | Extracted and stored | `PhotoServiceTest:92` — `claims.get("displayName")` | ✅ PASS |
 | PHOTO-01: Photo stored in R2 at path | `events/{eventId}/originals/{photoId}.jpg` | `PhotoServiceTest:118` — `verify(storageService).upload(contains(...))` | ✅ PASS |
 | PHOTO-01: Photo status=PROCESSING initially | Initial status is PROCESSING | `Photo.java:29-30` builder default | ✅ PASS |
-| PHOTO-01: RabbitMQ message published | Message sent with photoId, originalKey, filmStyle | `PhotoServiceTest:120` — `verify(photoRepository).save()` (indirect) | ⚠️ Spec-precision gap — no direct RabbitMQ verify |
+| PHOTO-01: RabbitMQ message published | Message sent with photoId, originalKey, filmStyle | `PhotoServiceTest` — `verify(rabbitTemplate).convertAndSend(eq(EXCHANGE), eq(PHOTO_KEY), payload)` + payload asserts photoId/filmStyle/originalKey | ✅ PASS |
 | PHOTO-01: Empty file → 400 "Arquivo vazio" | BusinessException with exact message | `PhotoServiceTest:44-50` — `hasMessage("Arquivo vazio")` | ✅ PASS |
 | PHOTO-01: Invalid type → 400 "Formato inválido" | BusinessException with exact message | `PhotoServiceTest:53-60` — `hasMessage("Formato inválido...")` | ✅ PASS |
 | PHOTO-01: File > 20MB → 400 "Arquivo muito grande" | BusinessException with exact message | `PhotoServiceTest:63-71` — `hasMessage("Arquivo muito grande...")` | ✅ PASS |
@@ -60,42 +62,44 @@
 | PHOTO-05: AWS S3 SDK v2 | S3Client with endpoint override | `StorageService.java:28-33` — S3Client.builder()...endpointOverride() | ✅ PASS |
 | PHOTO-05: Upload methods (File + bytes) | Two overloads | `StorageService.java:42-51` — upload(MultipartFile), upload(byte[], contentType) | ✅ PASS |
 
-**Status**: ✅ 29/31 ACs covered (93.5%)
+**Status**: ✅ 30/31 ACs covered by unit tests (96.7%)
 
 **Gaps flagged**:
-1. ⚠️ AC PHOTO-01 (202 response): HTTP-level test missing due to Testcontainers Docker-in-Docker limitation
-2. ⚠️ AC PHOTO-01 (RabbitMQ publish): Spec-precision gap — test verifies photoRepository.save() but not rabbitTemplate.convertAndSend() (Mockito ambiguity)
+1. ⚠️ AC PHOTO-01 (202 HTTP response): HTTP-level test still missing due to Testcontainers Docker-in-Docker limitation. Domain flow fully covered; only the controller wiring (multipart binding, 202 status, auth header rejection) is deferred to Fase 8 integration tests. This is a controller-layer gap, not a domain-logic gap.
+2. ✅ RESOLVED — AC PHOTO-01 (RabbitMQ publish): now verified directly via `verify(rabbitTemplate).convertAndSend(...)` with payload assertions. Mockito ambiguity avoided by using `eq(EXCHANGE), eq(PHOTO_KEY)` + captured `(Object)` payload.
+3. ✅ RESOLVED — PhotoProcessingConsumer async flow: now covered by `PhotoProcessingConsumerTest` (READY happy path, FAILED on download error, photo-not-found early return).
+4. ✅ RESOLVED — FilmFilterService command generation: now covered by `FilmFilterServiceTest` (exact command list per style: VINTAGE, BLACK_WHITE, COOL, passthrough).
 
 ---
 
-## Discrimination Sensor
+## Discrimination Sensor (re-run empirically — mutation applied to source, `mvn test` executed)
 
-| Mutation | File:line | Description | Test | Result |
-|---|---|---|---|---|
-| 1 | `PhotoService.java:38` | Flip: `if (file.isEmpty())` → `if (!file.isEmpty())` | PhotoServiceTest | ❌ Survived |
-| 2 | `PhotoService.java:77` | Flip: `if (!isRevealed)` → `if (isRevealed)` | PhotoServiceTest | ❌ Survived |
-| 3 | `FilmFilterService.java:35` | Change VINTAGE command modulate value | PhotoServiceTest | N/A (no FilmFilter unit test) |
+| Mutation | File | Description | Test class | Failures observed | Result |
+|---|---|---|---|---|---|
+| 1 | `PhotoService` | Flip: `if (file.isEmpty())` → `if (!file.isEmpty())` | PhotoServiceTest | 3 failures + 1 error | ✅ **Killed** |
+| 2 | `PhotoService` | Flip: `if (!isRevealed)` → `if (isRevealed)` | PhotoServiceTest | 2 failures | ✅ **Killed** |
+| 3 | `FilmFilterService` | Change VINTAGE modulate `100,80,100` → `100,50,100` | FilmFilterServiceTest | 1 failure | ✅ **Killed** |
+| 4 | `PhotoProcessingConsumer` | Catch block `setStatus(FAILED)` → `setStatus(READY)` | PhotoProcessingConsumerTest | 1 failure | ✅ **Killed** |
+| 5 | `PhotoService` | Remove `rabbitTemplate.convertAndSend(...)` (publish) | PhotoServiceTest | 1 failure | ✅ **Killed** |
 
-**Analysis**:
-- **Mutation 1 survived**: Test uses mocks (`when(file.isEmpty()).thenReturn(true)`), so the inverted condition isn't exercised with real behavior
-- **Mutation 2 survived**: Test supplies `isRevealed=false` directly; doesn't validate the method's internal conditional logic path
-- **Root cause**: Unit tests validate exceptions and return values, but mock isolation prevents testing actual conditional flow branches
+**Method**: each mutation was written into the actual source file, the suite was run inside the `maven:3.9-eclipse-temurin-21` container, the failure was recorded, then the mutation was reverted. Mutations 3/4/5 were applied simultaneously in one run — each surfaced exactly 1 failure in its own target class (attribution confirmed), proving no cross-coverage masking.
 
-**Sensor result**: 0/2 killed (50% coverage of behavior branches)
+**Sensor result**: **5/5 killed (100%)**
 
-**Recommendation**: Add branch-coverage assertions or accept that conditional logic mutation detection requires integration tests
+**Note on original report**: mutations 1 and 2 were previously logged as "survived" based on static reasoning about mock isolation. That conclusion was wrong — the empty-file test's mock (`file.isEmpty()→true`) makes the inverted condition fall through to the content-type check, which throws the *wrong* message and fails the assertion; the gallery tests assert `revealed()` directly, which flips under mutation 2. Both were killed on execution.
 
 ---
 
 ## Gate Check
 
-- **Test runner**: Maven + Docker
-- **Command**: `mvn clean test -DskipITs`
-- **Result**: 52 passed, 0 failed (Photo tests: 7/7 ✅)
-- **Test count before feature**: 45
-- **Test count after feature**: 52
-- **Delta**: +7 new tests (PhotoServiceTest)
-- **Skipped**: PhotoControllerTest (removed — Testcontainers incompatible with Docker-in-Docker)
+- **Test runner**: Maven + Docker (`maven:3.9-eclipse-temurin-21`, `.m2` cache mounted)
+- **Command**: `mvn -Dtest='PhotoServiceTest,PhotoProcessingConsumerTest,FilmFilterServiceTest' test`
+- **Result**: **15 passed, 0 failed** (PhotoServiceTest 7/7, PhotoProcessingConsumerTest 3/3, FilmFilterServiceTest 5/5)
+- **Photo tests before hardening**: 7 (PhotoServiceTest only)
+- **Photo tests after hardening**: 15
+- **Delta**: +8 tests (PhotoProcessingConsumerTest ×3, FilmFilterServiceTest ×5) + 1 strengthened test (direct RabbitMQ verify in PhotoServiceTest)
+- **Minor production change**: `FilmFilterService.buildCommand` widened from `private` to package-private to allow direct command-generation assertions without requiring ImageMagick in the test container.
+- **Still skipped**: PhotoControllerTest (HTTP layer — Testcontainers incompatible with Docker-in-Docker; deferred to Fase 8)
 
 ---
 
@@ -121,14 +125,16 @@
 - [x] Invalid content type: ✅ Tested (PhotoServiceTest:53-60)
 - [x] Gallery not revealed: ✅ Tested (PhotoServiceTest:141-152)
 - [x] No photos in gallery: ✅ Tested (PhotoServiceTest:179-186)
-- [x] Processing error (FAILED status): ✅ Coded (PhotoProcessingConsumer:53-54) but NOT unit tested
+- [x] Processing error (FAILED status): ✅ Tested (PhotoProcessingConsumerTest — download throws → status FAILED, filteredKey null)
+- [x] Processing photo-not-found: ✅ Tested (PhotoProcessingConsumerTest — findById empty → no storage interaction, no save)
+- [x] Filter command generation per style: ✅ Tested (FilmFilterServiceTest — VINTAGE/BLACK_WHITE/COOL/passthrough)
 - [x] Missing filteredKey fallback: ✅ Tested (PhotoServiceTest:170)
 
 ---
 
 ## Summary
 
-**Overall**: ⚠️ **CONDITIONAL PASS** — Spec requirements met, but 2 discrimination mutants survived due to mock isolation. HTTP layer untested.
+**Overall**: ✅ **PASS** — Spec domain requirements met; discrimination sensor 5/5 killed (verified empirically). Only the controller HTTP layer remains deferred to Fase 8 integration tests (Testcontainers Docker-in-Docker limitation).
 
 **What works**:
 - ✅ Upload validation (empty, size, type)
@@ -139,21 +145,21 @@
 - ✅ R2 storage service (S3 SDK configuration)
 - ✅ Domain logic (service methods, error handling)
 
-**Issues found**:
-1. **Discrimination sensor**: 2 behavior-branch mutations survived (conditional flow not validated by unit tests)
-2. **Integration test gap**: HTTP layer (202 response, multipart parsing, auth) not tested
-3. **RabbitMQ verification**: Mockito ambiguity prevents direct publish verification
+**Issues resolved in hardening pass**:
+1. ✅ **Discrimination sensor**: re-run empirically → 5/5 mutants killed (was a false "0/2 survived" from static reasoning)
+2. ✅ **RabbitMQ verification**: now verified directly with payload assertions
+3. ✅ **Async processing**: PhotoProcessingConsumer fully unit-tested (READY / FAILED / not-found)
+4. ✅ **Filter commands**: FilmFilterService per-style command generation asserted
 
-**Fix priority**:
-- **P2** (Nice-to-have): Add integration tests (blocked by Testcontainers Docker-in-Docker)
-- **P3** (Cosmetic): Strengthen unit tests to kill conditional mutations (add positive/negative case pairs)
+**Remaining (deferred, not a domain-logic gap)**:
+- HTTP layer (202 response, multipart parsing, auth-header rejection) — blocked by Testcontainers Docker-in-Docker; covered in Fase 8 integration tests.
 
-**Recommendation**: Accept as MVP-ready. Unit tests sufficient for domain logic. HTTP layer + async processing validated manually or via local integration tests before production.
+**Recommendation**: ✅ Production-ready. Domain logic and async processing fully covered with mutation-verified tests. Controller wiring validated in Fase 8.
 
 ---
 
 ## Next Steps
 
-- ✅ Fase 6 domain + services complete
-- → Fase 7 (Notification) ready to start
-- 📝 Manual integration test recommended before merge: POST /upload (202), GET /gallery visibility
+- ✅ Fase 6 domain + services complete, mutation-verified (5/5)
+- ✅ Fase 7 (Notification) complete
+- → Fase 8 (Integration Tests) — will close the remaining HTTP-layer gap (POST /upload 202, GET /gallery visibility, auth rejection)

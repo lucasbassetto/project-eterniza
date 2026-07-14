@@ -12,6 +12,7 @@ import com.eterniza.photo.dto.PhotoUploadResponse;
 import com.eterniza.photo.repository.PhotoRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
@@ -19,9 +20,12 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
+import static com.eterniza.event.messaging.RabbitMQConfig.EXCHANGE;
+import static com.eterniza.event.messaging.RabbitMQConfig.PHOTO_KEY;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
@@ -114,6 +118,17 @@ class PhotoServiceTest {
         assertThat(response.message()).isEqualTo("Foto recebida!");
         verify(storageService).upload(contains("events/" + eventId + "/originals/"), eq(file));
         verify(photoRepository).save(any(Photo.class));
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, String>> payload = ArgumentCaptor.forClass(Map.class);
+        verify(rabbitTemplate).convertAndSend(eq(EXCHANGE), eq(PHOTO_KEY), (Object) payload.capture());
+        assertThat(payload.getValue())
+                .containsEntry("photoId", photoId.toString())
+                .containsEntry("filmStyle", "VINTAGE")
+                .containsKey("originalKey");
+        assertThat(payload.getValue().get("originalKey"))
+                .startsWith("events/" + eventId + "/originals/")
+                .endsWith(".jpg");
     }
 
     @Test
