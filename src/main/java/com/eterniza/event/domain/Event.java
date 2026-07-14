@@ -34,14 +34,6 @@ public class Event {
     @Column(nullable = false)
     private Instant revealAt;
 
-    @Column(nullable = false)
-    @Builder.Default
-    private int guestLimit = 5;
-
-    @Column(nullable = false)
-    @Builder.Default
-    private int guestCount = 0;
-
     // photoCount não é armazenado: é calculado a partir da tabela de fotos
     // (fonte da verdade), evitando deriva quando fotos são criadas/removidas.
 
@@ -53,9 +45,5 @@ public class Event {
 
     public boolean isRevealed() {
         return status == EventStatus.REVEALED;
-    }
-
-    public boolean isGuestLimitReached() {
-        return guestCount >= guestLimit;
     }
 }

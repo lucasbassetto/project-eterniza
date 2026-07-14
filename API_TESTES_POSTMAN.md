@@ -86,14 +86,12 @@ Body:
 ```json
 {
   "name": "Casamento Ana & João",
-  "revealAt": "2026-07-21T12:00:00Z",
-  "guestLimit": 10
+  "revealAt": "2026-07-21T12:00:00Z"
 }
 ```
 
 Regras do body:
 - `revealAt`: **precisa ser uma data no futuro** (formato ISO 8601 com `Z`). Ajuste para depois da data de hoje.
-- `guestLimit`: opcional, pode remover o campo do JSON se quiser usar o padrão
 
 Sem o header `Authorization` → 401.
 
@@ -109,8 +107,6 @@ Resposta esperada (201):
     "qrCodeUrl": "...",
     "status": "ACTIVE",
     "revealAt": "2026-07-21T12:00:00Z",
-    "guestLimit": 10,
-    "guestCount": 0,
     "photoCount": 0,
     "createdAt": "..."
   }

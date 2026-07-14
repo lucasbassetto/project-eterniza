@@ -1,6 +1,5 @@
 package com.eterniza.event.service;
 
-import com.eterniza.common.exception.BusinessException;
 import com.eterniza.common.exception.ForbiddenException;
 import com.eterniza.common.exception.NotFoundException;
 import com.eterniza.event.domain.Event;
@@ -37,7 +36,6 @@ public class EventService {
                 .name(req.name())
                 .slug(UUID.randomUUID().toString())
                 .revealAt(req.revealAt())
-                .guestLimit(req.guestLimit() != null ? req.guestLimit() : 5)
                 .build());
         return toResponse(event);
     }
@@ -50,16 +48,6 @@ public class EventService {
     public List<EventResponse> findByHost(UUID hostId) {
         return eventRepository.findByHostIdOrderByCreatedAtDesc(hostId)
                 .stream().map(this::toResponse).toList();
-    }
-
-    @Transactional
-    public void incrementGuestCount(String slug) {
-        Event event = eventRepository.findBySlug(slug)
-                .orElseThrow(() -> new NotFoundException("Evento", slug));
-        if (event.isGuestLimitReached()) {
-            throw new BusinessException("Limite de convidados atingido");
-        }
-        event.setGuestCount(event.getGuestCount() + 1);
     }
 
     @Transactional
@@ -103,6 +91,6 @@ public class EventService {
         return new EventResponse(e.getId(), e.getName(), e.getSlug(),
                 "%s/e/%s".formatted(webUrl, e.getSlug()),
                 e.getStatus(), e.getRevealAt(),
-                e.getGuestLimit(), e.getGuestCount(), photoCount, e.getCreatedAt());
+                photoCount, e.getCreatedAt());
     }
 }

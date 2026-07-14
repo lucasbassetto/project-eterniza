@@ -1,6 +1,5 @@
 package com.eterniza.event.service;
 
-import com.eterniza.common.exception.BusinessException;
 import com.eterniza.common.exception.ForbiddenException;
 import com.eterniza.common.exception.NotFoundException;
 import com.eterniza.event.domain.Event;
@@ -56,7 +55,7 @@ class EventServiceTest {
     void create_validPayload_returnEventResponseWithIdAndSlug() {
         UUID hostId = UUID.randomUUID();
         Instant futureTime = Instant.now().plus(7, ChronoUnit.DAYS);
-        CreateEventRequest req = new CreateEventRequest("Meu Evento", futureTime, 10);
+        CreateEventRequest req = new CreateEventRequest("Meu Evento", futureTime);
 
         // Mock the save to return an event with generated ID and slug
         Event savedEvent = Event.builder()
@@ -66,7 +65,6 @@ class EventServiceTest {
                 .slug(UUID.randomUUID().toString())
                 .status(EventStatus.ACTIVE)
                 .revealAt(futureTime)
-                .guestLimit(10)
                 .build();
         when(eventRepository.save(any(Event.class))).thenReturn(savedEvent);
 
@@ -76,8 +74,6 @@ class EventServiceTest {
         assertThat(response.slug()).isNotNull();
         assertThat(response.name()).isEqualTo("Meu Evento");
         assertThat(response.status()).isEqualTo(EventStatus.ACTIVE);
-        assertThat(response.guestLimit()).isEqualTo(10);
-        assertThat(response.guestCount()).isZero();
         assertThat(response.photoCount()).isZero();
         assertThat(response.qrCodeUrl()).startsWith("http://localhost:3000/e/");
         verify(eventRepository).save(any(Event.class));
@@ -108,7 +104,7 @@ class EventServiceTest {
     void create_successfullyCreated_tokenResponseIncludesHostIdAndEmail() {
         UUID hostId = UUID.randomUUID();
         Instant futureTime = Instant.now().plus(7, ChronoUnit.DAYS);
-        CreateEventRequest req = new CreateEventRequest("Event", futureTime, null);
+        CreateEventRequest req = new CreateEventRequest("Event", futureTime);
 
         Event savedEvent = Event.builder()
                 .id(UUID.randomUUID())
@@ -117,7 +113,6 @@ class EventServiceTest {
                 .slug(UUID.randomUUID().toString())
                 .status(EventStatus.ACTIVE)
                 .revealAt(futureTime)
-                .guestLimit(5)
                 .build();
         when(eventRepository.save(any(Event.class))).thenReturn(savedEvent);
 
@@ -195,55 +190,6 @@ class EventServiceTest {
         List<EventResponse> responses = eventService.findByHost(hostId);
 
         assertThat(responses).isEmpty();
-    }
-
-    // ─── EVENT-13: Increment guest count - success ───
-    @Test
-    void incrementGuestCount_belowLimit_incrementsSuccessfully() {
-        String slug = "event-slug";
-        Event event = Event.builder()
-                .id(UUID.randomUUID())
-                .hostId(UUID.randomUUID())
-                .name("Event")
-                .slug(slug)
-                .guestLimit(5)
-                .guestCount(2)
-                .build();
-        when(eventRepository.findBySlug(slug)).thenReturn(Optional.of(event));
-
-        eventService.incrementGuestCount(slug);
-
-        assertThat(event.getGuestCount()).isEqualTo(3);
-        verify(eventRepository).findBySlug(slug);
-    }
-
-    // ─── EVENT-14: Increment guest count - limit reached ───
-    @Test
-    void incrementGuestCount_limitReached_throwsBusinessException() {
-        String slug = "event-slug";
-        Event event = Event.builder()
-                .id(UUID.randomUUID())
-                .hostId(UUID.randomUUID())
-                .name("Event")
-                .slug(slug)
-                .guestLimit(5)
-                .guestCount(5)
-                .build();
-        when(eventRepository.findBySlug(slug)).thenReturn(Optional.of(event));
-
-        assertThatThrownBy(() -> eventService.incrementGuestCount(slug))
-                .isInstanceOf(BusinessException.class)
-                .hasMessage("Limite de convidados atingido");
-    }
-
-    // ─── EVENT-15: Increment guest count - slug not found ───
-    @Test
-    void incrementGuestCount_slugNotFound_throwsNotFoundException() {
-        String slug = "nonexistent";
-        when(eventRepository.findBySlug(slug)).thenReturn(Optional.empty());
-
-        assertThatThrownBy(() -> eventService.incrementGuestCount(slug))
-                .isInstanceOf(NotFoundException.class);
     }
 
     // ─── EVENT-09: Reveal event - success ───
