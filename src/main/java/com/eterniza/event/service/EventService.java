@@ -35,11 +35,27 @@ public class EventService {
         Event event = eventRepository.save(Event.builder()
                 .hostId(hostId)
                 .name(req.name())
-                .slug(UUID.randomUUID().toString())
+                .slug(uniqueSlugFor(req.name()))
                 .revealAt(req.revealAt())
                 .photoLimitPerGuest(req.photoLimitPerGuest() != null ? req.photoLimitPerGuest() : 10)
                 .build());
         return toResponse(event);
+    }
+
+    /**
+     * Slug legível para o link/QR ("casamento-ana-joao-x7k2"). O sufixo
+     * aleatório torna colisão improvável; ainda assim tenta algumas vezes e a
+     * constraint UNIQUE do banco segura corrida entre requisições simultâneas.
+     */
+    private String uniqueSlugFor(String name) {
+        for (int attempt = 0; attempt < 5; attempt++) {
+            String slug = SlugGenerator.generate(name);
+            if (!eventRepository.existsBySlug(slug)) {
+                return slug;
+            }
+        }
+        // 5 colisões seguidas: praticamente impossível — cai no UUID, sempre único
+        return UUID.randomUUID().toString();
     }
 
     public EventResponse findBySlug(String slug) {

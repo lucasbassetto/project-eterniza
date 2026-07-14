@@ -11,6 +11,7 @@ import java.util.UUID;
 
 public interface EventRepository extends JpaRepository<Event, UUID> {
     Optional<Event> findBySlug(String slug);
+    boolean existsBySlug(String slug);
     List<Event> findByHostIdOrderByCreatedAtDesc(UUID hostId);
 
     @Query("SELECT e FROM Event e WHERE e.status = 'ACTIVE' AND e.revealAt <= :now")

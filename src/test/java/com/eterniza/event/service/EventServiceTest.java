@@ -82,6 +82,39 @@ class EventServiceTest {
         verify(eventRepository).save(any(Event.class));
     }
 
+    // ─── Slug legível gerado a partir do nome ───
+    @Test
+    void create_generatesReadableSlugFromName() {
+        UUID hostId = UUID.randomUUID();
+        Instant futureTime = Instant.now().plus(7, ChronoUnit.DAYS);
+        CreateEventRequest req = new CreateEventRequest("Casamento Ana & João", futureTime, null);
+        when(eventRepository.existsBySlug(anyString())).thenReturn(false);
+        when(eventRepository.save(any(Event.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        eventService.create(req, hostId);
+
+        var captor = org.mockito.ArgumentCaptor.forClass(Event.class);
+        verify(eventRepository).save(captor.capture());
+        assertThat(captor.getValue().getSlug()).matches("^casamento-ana-joao-[a-z0-9]{4}$");
+    }
+
+    @Test
+    void create_slugCollision_retriesWithNewSuffix() {
+        UUID hostId = UUID.randomUUID();
+        Instant futureTime = Instant.now().plus(7, ChronoUnit.DAYS);
+        CreateEventRequest req = new CreateEventRequest("Festa", futureTime, null);
+        // Primeira tentativa colide, segunda passa
+        when(eventRepository.existsBySlug(anyString())).thenReturn(true, false);
+        when(eventRepository.save(any(Event.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        eventService.create(req, hostId);
+
+        verify(eventRepository, times(2)).existsBySlug(anyString());
+        var captor = org.mockito.ArgumentCaptor.forClass(Event.class);
+        verify(eventRepository).save(captor.capture());
+        assertThat(captor.getValue().getSlug()).matches("^festa-[a-z0-9]{4}$");
+    }
+
     @Test
     void toResponse_photoCountReflectsActualPhotosInTable() {
         String slug = "event-slug";

@@ -28,6 +28,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.matchesPattern;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -191,7 +192,8 @@ class EventControllerTest {
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.id").exists())
                 .andExpect(jsonPath("$.data.name").value("Meu Evento"))
-                .andExpect(jsonPath("$.data.slug").exists())
+                // Slug legível: nome slugificado + sufixo aleatório de 4 chars
+                .andExpect(jsonPath("$.data.slug").value(matchesPattern("^meu-evento-[a-z0-9]{4}$")))
                 .andExpect(jsonPath("$.data.qrCodeUrl").exists())
                 .andExpect(jsonPath("$.data.status").value("ACTIVE"))
                 .andExpect(jsonPath("$.data.photoLimitPerGuest").value(10))
