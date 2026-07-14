@@ -293,19 +293,22 @@ class PhotoControllerTest {
 
     // ─── Moderação: GET /api/photos/event/{eventId} (host) ───
     @Test
-    void listForHost_beforeReveal_returnsMetadataWithNullUrls() throws Exception {
+    void listForHost_beforeReveal_hostSeesPhotoUrls() throws Exception {
         Event event = eventRepository.findById(eventId).orElseThrow();
         String hostToken = jwtUtil.generateHostToken(event.getHostId().toString(), "host@eterniza.com");
         photoRepository.save(readyPhoto("orig-1", null));
+        when(storageService.publicUrlFor(anyString()))
+                .thenAnswer(inv -> "https://cdn.eterniza.test/" + inv.getArgument(0));
 
+        // Evento ainda ACTIVE: o host vê as imagens mesmo assim (moderação) —
+        // o bloqueio até a revelação vale só para a galeria pública
         mockMvc.perform(get("/api/photos/event/{eventId}", eventId.toString())
                         .header("Authorization", "Bearer " + hostToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.length()").value(1))
                 .andExpect(jsonPath("$.data[0].photoId").exists())
                 .andExpect(jsonPath("$.data[0].guestName").value("Ana"))
-                // Antes da revelação nem o host vê a imagem
-                .andExpect(jsonPath("$.data[0].url").isEmpty());
+                .andExpect(jsonPath("$.data[0].url").value("https://cdn.eterniza.test/orig-1"));
     }
 
     @Test

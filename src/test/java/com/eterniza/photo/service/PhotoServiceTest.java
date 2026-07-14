@@ -265,9 +265,11 @@ class PhotoServiceTest {
 
     // ─── Moderação: listForHost ───
     @Test
-    void listForHost_beforeReveal_returnsMetadataWithoutUrls() {
+    void listForHost_beforeReveal_hostSeesUrls() {
         UUID eventId = UUID.randomUUID();
         UUID hostId = UUID.randomUUID();
+        // Evento ainda ACTIVE: o bloqueio até o reveal vale para os convidados,
+        // não para o host, que precisa ver o conteúdo para moderar
         Event event = Event.builder()
                 .id(eventId).hostId(hostId).status(com.eterniza.event.domain.EventStatus.ACTIVE)
                 .build();
@@ -278,17 +280,17 @@ class PhotoServiceTest {
         when(eventRepository.findById(eventId)).thenReturn(Optional.of(event));
         when(photoRepository.findByEventIdAndStatus(eventId, PhotoStatus.READY))
                 .thenReturn(List.of(photo));
+        when(storageService.publicUrlFor("orig-1")).thenReturn("https://cdn.eterniza.test/orig-1");
 
         var photos = photoService.listForHost(eventId.toString(), hostId);
 
         assertThat(photos).hasSize(1);
         assertThat(photos.get(0).guestName()).isEqualTo("Ana");
-        // Antes da revelação nem o host vê a imagem — modera pelos metadados
-        assertThat(photos.get(0).url()).isNull();
+        assertThat(photos.get(0).url()).isEqualTo("https://cdn.eterniza.test/orig-1");
     }
 
     @Test
-    void listForHost_afterReveal_returnsUrls() {
+    void listForHost_prefersFilteredKeyForUrl() {
         UUID eventId = UUID.randomUUID();
         UUID hostId = UUID.randomUUID();
         Event event = Event.builder()
@@ -296,16 +298,16 @@ class PhotoServiceTest {
                 .build();
         Photo photo = Photo.builder()
                 .id(UUID.randomUUID()).eventId(eventId).guestDeviceId("d1").guestName("Ana")
-                .originalKey("orig-1").filteredKey(null).status(PhotoStatus.READY)
+                .originalKey("orig-1").filteredKey("filt-1").status(PhotoStatus.READY)
                 .build();
         when(eventRepository.findById(eventId)).thenReturn(Optional.of(event));
         when(photoRepository.findByEventIdAndStatus(eventId, PhotoStatus.READY))
                 .thenReturn(List.of(photo));
-        when(storageService.publicUrlFor("orig-1")).thenReturn("https://cdn.eterniza.test/orig-1");
+        when(storageService.publicUrlFor("filt-1")).thenReturn("https://cdn.eterniza.test/filt-1");
 
         var photos = photoService.listForHost(eventId.toString(), hostId);
 
-        assertThat(photos.get(0).url()).isEqualTo("https://cdn.eterniza.test/orig-1");
+        assertThat(photos.get(0).url()).isEqualTo("https://cdn.eterniza.test/filt-1");
     }
 
     @Test

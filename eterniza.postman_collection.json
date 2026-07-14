@@ -258,7 +258,7 @@
             "method": "GET",
             "header": [ { "key": "Authorization", "value": "Bearer {{hostToken}}" } ],
             "url": { "raw": "{{baseUrl}}/api/photos/event/{{eventId}}", "host": [ "{{baseUrl}}" ], "path": [ "api", "photos", "event", "{{eventId}}" ] },
-            "description": "Lista as fotos do evento para moderação (host dono). 200 OK.\ndata = [{ photoId, guestName, createdAt, url }].\nAntes da revelação url vem null (nem o host vê as imagens). Depois da revelação, url traz a URL pública.\nGuarda o primeiro photoId na variável {{photoId}} para o DELETE.\n403 se não for o dono; 404 se o evento não existir."
+            "description": "Lista as fotos do evento para moderação (host dono). 200 OK.\ndata = [{ photoId, guestName, createdAt, url }].\nO host sempre vê as imagens (url pública), inclusive antes da revelação — o bloqueio do reveal vale só para a galeria pública dos convidados.\nGuarda o primeiro photoId na variável {{photoId}} para o DELETE.\n403 se não for o dono; 404 se o evento não existir."
           }
         },
         {

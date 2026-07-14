@@ -258,13 +258,12 @@ Resposta (200):
 {
   "success": true,
   "data": [
-    { "photoId": "b4f9...", "guestName": "Ana", "createdAt": "...", "url": null }
+    { "photoId": "b4f9...", "guestName": "Ana", "createdAt": "...", "url": "https://<bucket>.r2.dev/events/.../b4f9.jpg" }
   ]
 }
 ```
 
-- Antes da revelação `url` vem `null` — nem o host vê as imagens; modera pelos metadados.
-- Depois da revelação `url` traz a URL pública.
+- O host **sempre vê as imagens** (URL pública), inclusive antes da revelação — o bloqueio do reveal vale só para a galeria pública dos convidados; o dono precisa ver para moderar.
 - Host que não é dono → 403. Evento inexistente → 404.
 
 ---

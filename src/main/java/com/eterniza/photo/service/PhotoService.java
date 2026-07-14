@@ -76,8 +76,10 @@ public class PhotoService {
     }
 
     /**
-     * Fotos do evento vistas pelo host (moderação). Antes da revelação as URLs
-     * vêm nulas — a surpresa vale até para o host; ele modera pelos metadados.
+     * Fotos do evento vistas pelo host (moderação). O host vê as imagens a
+     * qualquer momento, inclusive antes da revelação — o bloqueio até o reveal
+     * vale para os convidados (galeria pública), não para o dono do evento,
+     * que precisa ver o conteúdo para poder moderar.
      */
     public List<EventPhotoResponse> listForHost(String eventId, UUID hostId) {
         Event event = eventRepository.findById(UUID.fromString(eventId))
@@ -90,10 +92,8 @@ public class PhotoService {
                 .stream()
                 .map(p -> new EventPhotoResponse(
                         p.getId(), p.getGuestName(), p.getCreatedAt(),
-                        event.isRevealed()
-                                ? storageService.publicUrlFor(
-                                        p.getFilteredKey() != null ? p.getFilteredKey() : p.getOriginalKey())
-                                : null))
+                        storageService.publicUrlFor(
+                                p.getFilteredKey() != null ? p.getFilteredKey() : p.getOriginalKey())))
                 .toList();
     }
 
