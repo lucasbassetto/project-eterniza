@@ -1,8 +1,22 @@
 # Eterniza — Especificações do Back-end
 
-> Guia completo de implementação do monolito modular.  
-> Um único projeto Java, um único POM, organizado em pacotes por responsabilidade.  
-> Siga as fases em ordem — cada uma depende da anterior.
+> ## ⚠️ DOCUMENTO HISTÓRICO — NÃO USE COMO REFERÊNCIA
+>
+> Este é o **guia original de construção** do backend (o código Java de cada classe,
+> fase por fase). O backend **evoluiu e divergiu** deste documento — várias partes
+> descritas aqui **não existem mais**:
+>
+> - ❌ O pipeline de filtro no servidor (`FilmFilterService` / ImageMagick, `PhotoProcessingConsumer`,
+>   fila `PHOTO_QUEUE`) foi **removido** — o filtro agora é aplicado **no app** (client-side).
+> - ❌ O `filmStyle` / enum `FilmStyle` foi **removido** do evento.
+> - ❌ Os status de foto `PROCESSING` e `FAILED` não existem mais — a foto nasce `READY`.
+> - ❌ O upload responde **201 Created** (não 202 Accepted).
+>
+> **Para implementar o app/frontend, use o [`API_CONTRACT.md`](API_CONTRACT.md)** — é o
+> contrato real e atualizado da API. Para o contrato machine-readable, use o OpenAPI
+> gerado automaticamente em `GET /api-docs`.
+>
+> Este arquivo é mantido apenas como registro de como o backend foi originalmente construído.
 
 ---
 

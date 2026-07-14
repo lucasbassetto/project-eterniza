@@ -31,6 +31,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -170,11 +171,17 @@ class PhotoControllerTest {
         photoRepository.save(readyPhoto("orig-1", "filt-1"));
         photoRepository.save(readyPhoto("orig-2", null));
 
+        when(storageService.publicUrlFor(anyString()))
+                .thenAnswer(inv -> "https://cdn.eterniza.test/" + inv.getArgument(0));
+
+        // A galeria expõe URLs públicas completas, não chaves de storage
         mockMvc.perform(get("/api/photos/gallery/{eventId}", eventId.toString()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.revealed").value(true))
                 .andExpect(jsonPath("$.data.totalPhotos").value(2))
-                .andExpect(jsonPath("$.data.photoUrls", containsInAnyOrder("filt-1", "orig-2")));
+                .andExpect(jsonPath("$.data.photoUrls", containsInAnyOrder(
+                        "https://cdn.eterniza.test/filt-1",
+                        "https://cdn.eterniza.test/orig-2")));
     }
 
     private Photo readyPhoto(String originalKey, String filteredKey) {

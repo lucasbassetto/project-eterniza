@@ -63,8 +63,11 @@ public class PhotoService {
             return new GalleryResponse(false, photos.size(), List.of());
         }
 
+        // Devolve a URL pública completa (não a chave do storage) — o cliente
+        // consome direto, sem precisar conhecer o bucket.
         List<String> urls = photos.stream()
-                .map(p -> p.getFilteredKey() != null ? p.getFilteredKey() : p.getOriginalKey())
+                .map(p -> storageService.publicUrlFor(
+                        p.getFilteredKey() != null ? p.getFilteredKey() : p.getOriginalKey()))
                 .toList();
 
         return new GalleryResponse(true, photos.size(), urls);

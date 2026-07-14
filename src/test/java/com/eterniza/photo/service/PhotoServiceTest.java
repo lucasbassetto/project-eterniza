@@ -153,12 +153,17 @@ class PhotoServiceTest {
                 .build();
         when(photoRepository.findByEventIdAndStatus(eventId, PhotoStatus.READY))
                 .thenReturn(List.of(photo1, photo2));
+        when(storageService.publicUrlFor(anyString()))
+                .thenAnswer(inv -> "https://cdn.eterniza.test/" + inv.getArgument(0));
 
         GalleryResponse response = photoService.getGallery(eventId.toString(), true);
 
         assertThat(response.revealed()).isTrue();
         assertThat(response.totalPhotos()).isEqualTo(2);
-        assertThat(response.photoUrls()).containsExactly("filtered-1", "orig-2");
+        // URLs públicas completas, não chaves de storage
+        assertThat(response.photoUrls()).containsExactly(
+                "https://cdn.eterniza.test/filtered-1",
+                "https://cdn.eterniza.test/orig-2");
     }
 
     @Test

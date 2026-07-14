@@ -41,6 +41,11 @@ public class StorageService {
         s3.putObject(PutObjectRequest.builder()
                         .bucket(bucket).key(key).contentType(file.getContentType()).build(),
                 RequestBody.fromBytes(file.getBytes()));
+        return publicUrlFor(key);
+    }
+
+    /** URL pública da imagem no bucket — o cliente consome esta URL diretamente. */
+    public String publicUrlFor(String key) {
         return publicUrl + "/" + key;
     }
 }
