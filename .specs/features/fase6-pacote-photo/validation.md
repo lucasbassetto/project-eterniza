@@ -1,5 +1,8 @@
 # Fase 6 Validation
 
+> **⚠️ Nota histórica:** este relatório valida a Fase 6 no modelo original (filtro no servidor). A arquitetura mudou depois: o filtro passou a ser aplicado no aplicativo (client-side), e o pipeline de filtro do servidor (`FilmFilterService`, `PhotoProcessingConsumer`, fila `PHOTO_QUEUE`, e seus testes) foi removido. As menções abaixo a esses componentes refletem o estado da época. Ver a nota de arquitetura em `spec.md`.
+
+
 **Date**: 2026-07-13 (revised — discrimination sensor re-run empirically)
 **Spec**: `.specs/features/fase6-pacote-photo/spec.md`
 **Diff range**: HEAD~2..HEAD (commits e1d3b33, 689acaf) + hardening pass (PhotoProcessingConsumerTest, FilmFilterServiceTest, direct RabbitMQ verify)

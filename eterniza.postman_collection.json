@@ -1,0 +1,289 @@
+{
+  "info": {
+    "name": "Eterniza API — Backend",
+    "description": "Collection completa com TODOS os endpoints do backend Eterniza.\n\nBase: http://localhost:8080\n\nComo usar (rode de cima para baixo):\n1. Auth → Register host  (captura {{hostToken}} e reusa {{email}}/{{password}})\n2. Auth → Login host     (recaptura {{hostToken}})\n3. Events → Create event (captura {{eventId}} e {{slug}})\n4. Events → Get by slug  (público)\n5. Events → My events    (usa {{hostToken}})\n6. Guest → Guest session (usa {{eventId}}, captura {{guestToken}})\n7. Photos → Upload       (usa {{guestToken}} + {{eventId}} + arquivo)\n8. Photos → Gallery      (público, usa {{eventId}})\n9. Docs → OpenAPI / Swagger UI\n\nScripts automáticos preenchem as variáveis; não precisa copiar token manualmente.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080", "type": "string" },
+    { "key": "email", "value": "", "type": "string" },
+    { "key": "password", "value": "senha1234", "type": "string" },
+    { "key": "hostToken", "value": "", "type": "string" },
+    { "key": "guestToken", "value": "", "type": "string" },
+    { "key": "eventId", "value": "", "type": "string" },
+    { "key": "slug", "value": "", "type": "string" },
+    { "key": "deviceId", "value": "device-postman-001", "type": "string" },
+    { "key": "revealAt", "value": "", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "1. Auth",
+      "item": [
+        {
+          "name": "POST Register host  (público)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Gera e-mail único a cada execução para evitar 'E-mail já cadastrado'",
+                  "if (!pm.collectionVariables.get('email')) {",
+                  "  pm.collectionVariables.set('email', 'host_' + Date.now() + '@eterniza.com');",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));",
+                  "var j = pm.response.json();",
+                  "if (j.data && j.data.token) { pm.collectionVariables.set('hostToken', j.data.token); }",
+                  "pm.test('retorna token', () => pm.expect(j.data.token).to.be.a('string'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Lucas Host\",\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/auth/register", "host": [ "{{baseUrl}}" ], "path": [ "api", "auth", "register" ] },
+            "description": "Registra um novo host. 201 Created. data = { token, name, email }.\nValidação: name @NotBlank, email @Email, password mín. 8 chars.\nErro de e-mail duplicado → 400 'E-mail já cadastrado'."
+          }
+        },
+        {
+          "name": "POST Login host  (público)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "var j = pm.response.json();",
+                  "if (j.data && j.data.token) { pm.collectionVariables.set('hostToken', j.data.token); }",
+                  "pm.test('retorna token', () => pm.expect(j.data.token).to.be.a('string'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/auth/login", "host": [ "{{baseUrl}}" ], "path": [ "api", "auth", "login" ] },
+            "description": "Login do host. 200 OK. data = { token, name, email }.\nCredenciais inválidas → 401 'Credenciais inválidas'.\nUsa o mesmo {{email}}/{{password}} do register."
+          }
+        },
+        {
+          "name": "POST Guest session  (público)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "var j = pm.response.json();",
+                  "if (j.data) { pm.collectionVariables.set('guestToken', j.data); }",
+                  "pm.test('retorna token guest', () => pm.expect(j.data).to.be.a('string'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"displayName\": \"Ana Convidada\",\n  \"eventId\": \"{{eventId}}\",\n  \"deviceId\": \"{{deviceId}}\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/auth/guest/session", "host": [ "{{baseUrl}}" ], "path": [ "api", "auth", "guest", "session" ] },
+            "description": "Cria sessão anônima de guest. 200 OK. data = token (string).\nValidação: displayName @NotBlank máx.30, eventId @NotBlank, deviceId @NotBlank.\nRode 'Create event' antes para popular {{eventId}}."
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Events",
+      "item": [
+        {
+          "name": "POST Create event  (protegido: host)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// revealAt precisa ser no futuro (@Future): agora + 7 dias",
+                  "pm.collectionVariables.set('revealAt', new Date(Date.now() + 7*24*3600*1000).toISOString());"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));",
+                  "var j = pm.response.json();",
+                  "if (j.data) {",
+                  "  pm.collectionVariables.set('eventId', j.data.id);",
+                  "  pm.collectionVariables.set('slug', j.data.slug);",
+                  "}",
+                  "pm.test('retorna id e slug', () => { pm.expect(j.data.id).to.be.a('string'); pm.expect(j.data.slug).to.be.a('string'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{hostToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Casamento Ana & João\",\n  \"filmStyle\": \"VINTAGE\",\n  \"revealAt\": \"{{revealAt}}\",\n  \"guestLimit\": 10\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/events", "host": [ "{{baseUrl}}" ], "path": [ "api", "events" ] },
+            "description": "Cria evento. 201 Created. data = EventResponse (id, slug, qrCodeUrl, ...).\nRequer Authorization: Bearer {{hostToken}}.\nfilmStyle ∈ VINTAGE | BLACK_WHITE | COOL | ORIGINAL.\nrevealAt @Future (preenchido automaticamente). guestLimit opcional.\nSem token → 401."
+          }
+        },
+        {
+          "name": "GET Event by slug  (público)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "var j = pm.response.json();",
+                  "pm.test('slug confere', () => pm.expect(j.data.slug).to.eql(pm.collectionVariables.get('slug')));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/events/slug/{{slug}}", "host": [ "{{baseUrl}}" ], "path": [ "api", "events", "slug", "{{slug}}" ] },
+            "description": "Busca evento pelo slug do QR code. Público (sem token). 200 OK.\nSlug inexistente → 404.\nUsa {{slug}} capturado no create event."
+          }
+        },
+        {
+          "name": "GET My events  (protegido: host)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "var j = pm.response.json();",
+                  "pm.test('data é lista', () => pm.expect(j.data).to.be.an('array'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [ { "key": "Authorization", "value": "Bearer {{hostToken}}" } ],
+            "url": { "raw": "{{baseUrl}}/api/events/my", "host": [ "{{baseUrl}}" ], "path": [ "api", "events", "my" ] },
+            "description": "Lista os eventos do host autenticado. 200 OK. data = lista de EventResponse.\nRequer Authorization: Bearer {{hostToken}}. Sem token → 401."
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Photos",
+      "item": [
+        {
+          "name": "POST Upload photo  (protegido: guest)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 202', () => pm.response.to.have.status(202));",
+                  "var j = pm.response.json();",
+                  "pm.test('retorna photoId', () => pm.expect(j.data.photoId).to.be.a('string'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Authorization", "value": "Bearer {{guestToken}}" } ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "file", "type": "file", "src": [], "description": "Selecione uma imagem JPEG/PNG/WebP (máx 20MB)" },
+                { "key": "eventId", "value": "{{eventId}}", "type": "text" }
+              ]
+            },
+            "url": { "raw": "{{baseUrl}}/api/photos/upload", "host": [ "{{baseUrl}}" ], "path": [ "api", "photos", "upload" ] },
+            "description": "Envia foto (guest). 202 Accepted. data = { photoId, message }.\nO filtro é aplicado ao vivo no app (client-side, estilo Instagram) antes do upload; o servidor apenas armazena a imagem final e grava a foto como READY. Sem processamento no servidor.\nMultipart: campo 'file' (imagem já filtrada) + 'eventId'. Header Authorization: Bearer {{guestToken}}.\n⚠️ Selecione um arquivo no campo 'file' antes de enviar (o Postman não guarda o caminho).\nRegras: vazio → 400 'Arquivo vazio'; tipo inválido → 400 'Formato inválido...'; >20MB → 400 'Arquivo muito grande...'; sem token → 401."
+          }
+        },
+        {
+          "name": "GET Gallery  (público)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "var j = pm.response.json();",
+                  "pm.test('tem campo revealed', () => pm.expect(j.data).to.have.property('revealed'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/photos/gallery/{{eventId}}", "host": [ "{{baseUrl}}" ], "path": [ "api", "photos", "gallery", "{{eventId}}" ] },
+            "description": "Galeria do evento. Público (sem token). 200 OK.\ndata = { revealed, totalPhotos, photoUrls }.\nEnquanto o evento não for revelado: revealed=false e photoUrls=[] (só a contagem aparece).\nApós revelado: photoUrls traz as URLs (filtrada preferida, original como fallback)."
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Docs (infra)",
+      "item": [
+        {
+          "name": "GET OpenAPI JSON  (público)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api-docs", "host": [ "{{baseUrl}}" ], "path": [ "api-docs" ] },
+            "description": "Especificação OpenAPI gerada pelo springdoc. Público. 200 OK (JSON)."
+          }
+        },
+        {
+          "name": "GET Swagger UI  (público)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/swagger-ui.html", "host": [ "{{baseUrl}}" ], "path": [ "swagger-ui.html" ] },
+            "description": "Interface Swagger UI (redireciona para /swagger-ui/index.html). Público. Abra no navegador."
+          }
+        }
+      ]
+    }
+  ]
+}

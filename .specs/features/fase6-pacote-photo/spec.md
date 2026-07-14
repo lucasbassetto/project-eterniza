@@ -1,11 +1,13 @@
 ---
 name: Fase 6 — Pacote photo
-description: Photo upload, storage, and async film filter processing
+description: Photo upload, storage, and gallery (filter applied client-side)
 ---
 
 ## Overview
 
-Fase 6 implements the photo upload and gallery system for Eterniza. Guests upload photos to events, which are stored in Cloudflare R2, processed with film filters asynchronously via RabbitMQ, and served through a gallery endpoint with event reveal-state visibility control.
+Fase 6 implements the photo upload and gallery system for Eterniza. Guests upload photos to events, which are stored in Cloudflare R2 and served through a gallery endpoint with event reveal-state visibility control.
+
+> **⚠️ Atualização de arquitetura (pós-Fase 8):** o filtro deixou de ser aplicado no servidor. Agora o convidado escolhe o filtro **ao vivo no aplicativo** (client-side, estilo Instagram/Snapchat) e envia a imagem já finalizada; o servidor apenas armazena e serve. Em consequência, o pipeline assíncrono de filtro foi removido — `FilmFilterService` (ImageMagick), `PhotoProcessingConsumer` e a fila `PHOTO_QUEUE` não existem mais. A foto é persistida diretamente com `status = READY`. As seções abaixo marcadas como ~~riscadas~~ ou anotadas refletem essa mudança.
 
 ## Acceptance Criteria
 
@@ -13,28 +15,17 @@ Fase 6 implements the photo upload and gallery system for Eterniza. Guests uploa
 - POST `/api/photos/upload` accepts multipart file + eventId + guest JWT token
 - Guest device ID extracted from JWT subject claim
 - Guest display name extracted from JWT "displayName" claim
-- Photo stored in R2 at `events/{eventId}/originals/{photoId}.jpg`
-- Photo record created with status=PROCESSING
-- Upload message published to RabbitMQ PHOTO_QUEUE with (photoId, originalKey, filmStyle)
+- Photo (already filtered by the app) stored in R2 at `events/{eventId}/originals/{photoId}.jpg`
+- Photo record created with **status=READY** (no server-side processing step)
 - Returns 202 ACCEPTED with photoId and "Foto recebida!" message
 - Empty file rejected with 400 + "Arquivo vazio"
 - Invalid content type (not jpeg/png/webp) rejected with 400 + "Formato inválido..."
 - File size > 20MB rejected with 400 + "Arquivo muito grande..."
 - Missing Authorization header returns 401
 
-### PHOTO-02: Async photo processing
-- PhotoProcessingConsumer listens to PHOTO_QUEUE
-- Downloads original from R2
-- Applies FilmFilterService based on event's filmStyle
-- ImageMagick commands:
-  - VINTAGE: modulate 100,80,100 + colorize 10,5,0 + contrast-stretch 0.5%
-  - BLACK_WHITE: colorspace Gray + contrast-stretch 1%
-  - COOL: modulate 100,90,105 + colorize 0,3,12
-  - ORIGINAL: passthrough (no filter)
-- Filtered image uploaded to R2 at `events/{eventId}/filtered/{photoId}.jpg`
-- Photo record updated: filteredKey = filtered path, status = READY
-- On error: status = FAILED, original key retained
-- Failures logged but do not crash consumer
+### ~~PHOTO-02: Async photo processing~~ (REMOVIDO)
+
+**Removido na mudança de arquitetura.** O filtro agora é aplicado no aplicativo (client-side), então não há processamento assíncrono no servidor. O que existia aqui — `PhotoProcessingConsumer` escutando `PHOTO_QUEUE`, download do R2, `FilmFilterService` com ImageMagick (VINTAGE/BLACK_WHITE/COOL/ORIGINAL), reupload da versão filtrada e transição `PROCESSING → READY/FAILED` — foi todo removido. A foto já chega `READY`.
 
 ### PHOTO-03: Gallery endpoint visibility
 - GET `/api/photos/gallery/{eventId}` is public (no auth required)
@@ -60,14 +51,13 @@ Fase 6 implements the photo upload and gallery system for Eterniza. Guests uploa
   - eterniza.r2.bucket
   - eterniza.r2.public-url (serves filtered/original URLs)
 - AWS S3 SDK v2 with custom endpoint override
-- Upload methods: MultipartFile or byte[] + contentType
+- Upload method: MultipartFile (the `download` and `byte[]` upload were removed with the filter pipeline)
 
 ## Dependencies
 
-- Fase 5: Event entity, EventStatus, FilmStyle, EventRepository
-- RabbitMQConfig: EXCHANGE, PHOTO_QUEUE, PHOTO_KEY, REVEAL_QUEUE constants
+- Fase 5: Event entity, EventStatus, FilmStyle (agora usado apenas como filtro sugerido/padrão do evento), EventRepository
 - JwtUtil: extractClaims, generateGuestToken methods
-- ImageMagick: `convert` command-line tool (for film filter processing)
+- ~~RabbitMQ PHOTO_QUEUE / ImageMagick~~ — removidos (filtro é client-side)
 
 ## Test Coverage
 
