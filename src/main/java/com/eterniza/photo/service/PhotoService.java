@@ -1,7 +1,10 @@
 package com.eterniza.photo.service;
 
 import com.eterniza.common.exception.BusinessException;
+import com.eterniza.common.exception.NotFoundException;
 import com.eterniza.common.security.JwtUtil;
+import com.eterniza.event.domain.Event;
+import com.eterniza.event.repository.EventRepository;
 import com.eterniza.photo.domain.Photo;
 import com.eterniza.photo.domain.PhotoStatus;
 import com.eterniza.photo.dto.GalleryResponse;
@@ -21,6 +24,7 @@ import java.util.UUID;
 public class PhotoService {
 
     private final PhotoRepository photoRepository;
+    private final EventRepository eventRepository;
     private final StorageService storageService;
     private final JwtUtil jwtUtil;
 
@@ -35,6 +39,17 @@ public class PhotoService {
         var claims    = jwtUtil.extractClaims(guestToken.replace("Bearer ", ""));
         String deviceId  = claims.getSubject();
         String guestName = (String) claims.get("displayName");
+
+        Event event = eventRepository.findById(UUID.fromString(eventId))
+                .orElseThrow(() -> new NotFoundException("Evento", eventId));
+
+        // Estilo "câmera descartável": cada convidado (deviceId) tem um número
+        // fixo de poses no evento. Contagem direto da tabela de fotos.
+        long photosTaken = photoRepository.countByEventIdAndGuestDeviceId(event.getId(), deviceId);
+        if (photosTaken >= event.getPhotoLimitPerGuest()) {
+            throw new BusinessException("Você já usou todas as suas %d fotos neste evento"
+                    .formatted(event.getPhotoLimitPerGuest()));
+        }
 
         // O filtro é aplicado ao vivo no app (client-side); o servidor recebe a
         // imagem já finalizada, apenas armazena e marca como pronta — sem

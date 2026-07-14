@@ -70,7 +70,7 @@ class EventControllerTest {
     @Test
     void findBySlug_eventWithPhotos_photoCountReflectsRealPhotos() throws Exception {
         Instant futureTime = Instant.now().plus(7, ChronoUnit.DAYS);
-        CreateEventRequest req = new CreateEventRequest("Evento com fotos", futureTime);
+        CreateEventRequest req = new CreateEventRequest("Evento com fotos", futureTime, null);
 
         MvcResult createResult = mockMvc.perform(post("/api/events")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -156,7 +156,7 @@ class EventControllerTest {
 
     private UUID createEvent(String name) throws Exception {
         CreateEventRequest req = new CreateEventRequest(
-                name, Instant.now().plus(7, ChronoUnit.DAYS));
+                name, Instant.now().plus(7, ChronoUnit.DAYS), null);
         MvcResult result = mockMvc.perform(post("/api/events")
                         .contentType(MediaType.APPLICATION_JSON)
                         .header("Authorization", "Bearer " + hostToken)
@@ -181,7 +181,7 @@ class EventControllerTest {
     @Test
     void create_validPayload_returns201WithEventResponse() throws Exception {
         Instant futureTime = Instant.now().plus(7, ChronoUnit.DAYS);
-        CreateEventRequest req = new CreateEventRequest("Meu Evento", futureTime);
+        CreateEventRequest req = new CreateEventRequest("Meu Evento", futureTime, null);
 
         mockMvc.perform(post("/api/events")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -194,7 +194,35 @@ class EventControllerTest {
                 .andExpect(jsonPath("$.data.slug").exists())
                 .andExpect(jsonPath("$.data.qrCodeUrl").exists())
                 .andExpect(jsonPath("$.data.status").value("ACTIVE"))
+                .andExpect(jsonPath("$.data.photoLimitPerGuest").value(10))
                 .andExpect(jsonPath("$.data.photoCount").value(0));
+    }
+
+    // ─── Limite de fotos por convidado: valor customizado e validação ───
+    @Test
+    void create_withCustomPhotoLimit_returnsIt() throws Exception {
+        Instant futureTime = Instant.now().plus(7, ChronoUnit.DAYS);
+        CreateEventRequest req = new CreateEventRequest("Evento 36 poses", futureTime, 36);
+
+        mockMvc.perform(post("/api/events")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header("Authorization", "Bearer " + hostToken)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.photoLimitPerGuest").value(36));
+    }
+
+    @Test
+    void create_photoLimitOutOfRange_returns400() throws Exception {
+        Instant futureTime = Instant.now().plus(7, ChronoUnit.DAYS);
+        CreateEventRequest req = new CreateEventRequest("Evento inválido", futureTime, 0);
+
+        mockMvc.perform(post("/api/events")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header("Authorization", "Bearer " + hostToken)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value(containsString("no mínimo 1")));
     }
 
     // ─── EVENT-02: Create with invalid payload ───
@@ -217,7 +245,7 @@ class EventControllerTest {
     @Test
     void create_withoutAuthorizationHeader_returns401() throws Exception {
         Instant futureTime = Instant.now().plus(7, ChronoUnit.DAYS);
-        CreateEventRequest req = new CreateEventRequest("Event", futureTime);
+        CreateEventRequest req = new CreateEventRequest("Event", futureTime, null);
 
         mockMvc.perform(post("/api/events")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -229,7 +257,7 @@ class EventControllerTest {
     @Test
     void findBySlug_existingSlug_returns200WithEventResponse() throws Exception {
         Instant futureTime = Instant.now().plus(7, ChronoUnit.DAYS);
-        CreateEventRequest req = new CreateEventRequest("Event Pub", futureTime);
+        CreateEventRequest req = new CreateEventRequest("Event Pub", futureTime, null);
 
         MvcResult createResult = mockMvc.perform(post("/api/events")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -259,7 +287,7 @@ class EventControllerTest {
     @Test
     void findBySlug_isPublicRoute_noAuthRequired() throws Exception {
         Instant futureTime = Instant.now().plus(7, ChronoUnit.DAYS);
-        CreateEventRequest req = new CreateEventRequest("Public Event", futureTime);
+        CreateEventRequest req = new CreateEventRequest("Public Event", futureTime, null);
 
         MvcResult createResult = mockMvc.perform(post("/api/events")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -281,8 +309,8 @@ class EventControllerTest {
     @Test
     void myEvents_validToken_returns200WithEventList() throws Exception {
         Instant futureTime = Instant.now().plus(7, ChronoUnit.DAYS);
-        CreateEventRequest req1 = new CreateEventRequest("Event 1", futureTime);
-        CreateEventRequest req2 = new CreateEventRequest("Event 2", futureTime.plus(1, ChronoUnit.DAYS));
+        CreateEventRequest req1 = new CreateEventRequest("Event 1", futureTime, null);
+        CreateEventRequest req2 = new CreateEventRequest("Event 2", futureTime.plus(1, ChronoUnit.DAYS), null);
 
         mockMvc.perform(post("/api/events")
                         .contentType(MediaType.APPLICATION_JSON)

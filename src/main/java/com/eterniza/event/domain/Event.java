@@ -34,6 +34,12 @@ public class Event {
     @Column(nullable = false)
     private Instant revealAt;
 
+    // Estilo "câmera descartável": cada convidado tem um número fixo de poses.
+    // Identificação por deviceId — suficiente para a experiência, não é segurança.
+    @Column(nullable = false)
+    @Builder.Default
+    private int photoLimitPerGuest = 10;
+
     // photoCount não é armazenado: é calculado a partir da tabela de fotos
     // (fonte da verdade), evitando deriva quando fotos são criadas/removidas.
 

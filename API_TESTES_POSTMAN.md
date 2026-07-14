@@ -86,12 +86,14 @@ Body:
 ```json
 {
   "name": "Casamento Ana & João",
-  "revealAt": "2026-07-21T12:00:00Z"
+  "revealAt": "2026-07-21T12:00:00Z",
+  "photoLimitPerGuest": 10
 }
 ```
 
 Regras do body:
 - `revealAt`: **precisa ser uma data no futuro** (formato ISO 8601 com `Z`). Ajuste para depois da data de hoje.
+- `photoLimitPerGuest`: opcional (padrão 10, entre 1 e 100) — quantas fotos **cada convidado** pode enviar.
 
 Sem o header `Authorization` → 401.
 
@@ -107,6 +109,7 @@ Resposta esperada (201):
     "qrCodeUrl": "...",
     "status": "ACTIVE",
     "revealAt": "2026-07-21T12:00:00Z",
+    "photoLimitPerGuest": 10,
     "photoCount": 0,
     "createdAt": "..."
   }
@@ -197,6 +200,8 @@ Regras:
 - Arquivo vazio → 400 "Arquivo vazio"
 - Tipo diferente de JPEG/PNG/WebP → 400 "Formato inválido. Envie JPEG, PNG ou WebP"
 - Arquivo maior que 20MB → 400 "Arquivo muito grande. Máximo 20MB"
+- Convidado já usou todas as fotos do evento (`photoLimitPerGuest`, contado por deviceId) → 400 "Você já usou todas as suas N fotos neste evento"
+- `eventId` inexistente → 404
 - Sem header `Authorization` → 401
 
 Resposta esperada (201):

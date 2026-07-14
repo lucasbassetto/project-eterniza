@@ -10,4 +10,5 @@ import java.util.UUID;
 public interface PhotoRepository extends JpaRepository<Photo, UUID> {
     List<Photo> findByEventIdAndStatus(UUID eventId, PhotoStatus status);
     long countByEventId(UUID eventId);
+    long countByEventIdAndGuestDeviceId(UUID eventId, String guestDeviceId);
 }

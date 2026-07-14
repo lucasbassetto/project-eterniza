@@ -36,6 +36,7 @@ public class EventService {
                 .name(req.name())
                 .slug(UUID.randomUUID().toString())
                 .revealAt(req.revealAt())
+                .photoLimitPerGuest(req.photoLimitPerGuest() != null ? req.photoLimitPerGuest() : 10)
                 .build());
         return toResponse(event);
     }
@@ -91,6 +92,6 @@ public class EventService {
         return new EventResponse(e.getId(), e.getName(), e.getSlug(),
                 "%s/e/%s".formatted(webUrl, e.getSlug()),
                 e.getStatus(), e.getRevealAt(),
-                photoCount, e.getCreatedAt());
+                e.getPhotoLimitPerGuest(), photoCount, e.getCreatedAt());
     }
 }

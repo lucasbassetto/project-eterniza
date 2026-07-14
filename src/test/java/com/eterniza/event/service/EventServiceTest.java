@@ -55,7 +55,7 @@ class EventServiceTest {
     void create_validPayload_returnEventResponseWithIdAndSlug() {
         UUID hostId = UUID.randomUUID();
         Instant futureTime = Instant.now().plus(7, ChronoUnit.DAYS);
-        CreateEventRequest req = new CreateEventRequest("Meu Evento", futureTime);
+        CreateEventRequest req = new CreateEventRequest("Meu Evento", futureTime, 20);
 
         // Mock the save to return an event with generated ID and slug
         Event savedEvent = Event.builder()
@@ -65,6 +65,7 @@ class EventServiceTest {
                 .slug(UUID.randomUUID().toString())
                 .status(EventStatus.ACTIVE)
                 .revealAt(futureTime)
+                .photoLimitPerGuest(20)
                 .build();
         when(eventRepository.save(any(Event.class))).thenReturn(savedEvent);
 
@@ -74,6 +75,7 @@ class EventServiceTest {
         assertThat(response.slug()).isNotNull();
         assertThat(response.name()).isEqualTo("Meu Evento");
         assertThat(response.status()).isEqualTo(EventStatus.ACTIVE);
+        assertThat(response.photoLimitPerGuest()).isEqualTo(20);
         assertThat(response.photoCount()).isZero();
         assertThat(response.qrCodeUrl()).startsWith("http://localhost:3000/e/");
         verify(eventRepository).save(any(Event.class));
@@ -104,7 +106,7 @@ class EventServiceTest {
     void create_successfullyCreated_tokenResponseIncludesHostIdAndEmail() {
         UUID hostId = UUID.randomUUID();
         Instant futureTime = Instant.now().plus(7, ChronoUnit.DAYS);
-        CreateEventRequest req = new CreateEventRequest("Event", futureTime);
+        CreateEventRequest req = new CreateEventRequest("Event", futureTime, null);
 
         Event savedEvent = Event.builder()
                 .id(UUID.randomUUID())

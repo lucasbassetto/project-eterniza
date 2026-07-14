@@ -1,7 +1,10 @@
 package com.eterniza.photo.service;
 
 import com.eterniza.common.exception.BusinessException;
+import com.eterniza.common.exception.NotFoundException;
 import com.eterniza.common.security.JwtUtil;
+import com.eterniza.event.domain.Event;
+import com.eterniza.event.repository.EventRepository;
 import com.eterniza.photo.domain.Photo;
 import com.eterniza.photo.domain.PhotoStatus;
 import com.eterniza.photo.dto.GalleryResponse;
@@ -16,6 +19,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.*;
@@ -27,13 +31,14 @@ class PhotoServiceTest {
     private PhotoService photoService;
 
     @Mock private PhotoRepository photoRepository;
+    @Mock private EventRepository eventRepository;
     @Mock private StorageService storageService;
     @Mock private JwtUtil jwtUtil;
 
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
-        photoService = new PhotoService(photoRepository, storageService, jwtUtil);
+        photoService = new PhotoService(photoRepository, eventRepository, storageService, jwtUtil);
     }
 
     @Test
@@ -87,6 +92,10 @@ class PhotoServiceTest {
         when(claims.getSubject()).thenReturn(guestDeviceId);
         when(claims.get("displayName")).thenReturn(guestName);
 
+        Event event = Event.builder().id(eventId).photoLimitPerGuest(10).build();
+        when(eventRepository.findById(eventId)).thenReturn(Optional.of(event));
+        when(photoRepository.countByEventIdAndGuestDeviceId(eventId, guestDeviceId)).thenReturn(3L);
+
         Photo savedPhoto = Photo.builder()
                 .id(photoId)
                 .eventId(eventId)
@@ -113,6 +122,56 @@ class PhotoServiceTest {
         assertThat(saved.getValue().getOriginalKey())
                 .startsWith("events/" + eventId + "/originals/")
                 .endsWith(".jpg");
+    }
+
+    @Test
+    void upload_guestAtPhotoLimit_throwsBusinessExceptionAndDoesNotStore() throws IOException {
+        UUID eventId = UUID.randomUUID();
+        String guestDeviceId = "device-123";
+
+        MultipartFile file = mock(MultipartFile.class);
+        when(file.isEmpty()).thenReturn(false);
+        when(file.getContentType()).thenReturn("image/jpeg");
+        when(file.getSize()).thenReturn(1024L);
+
+        var claims = mock(io.jsonwebtoken.Claims.class);
+        when(jwtUtil.extractClaims(anyString())).thenReturn(claims);
+        when(claims.getSubject()).thenReturn(guestDeviceId);
+        when(claims.get("displayName")).thenReturn("Maria");
+
+        Event event = Event.builder().id(eventId).photoLimitPerGuest(3).build();
+        when(eventRepository.findById(eventId)).thenReturn(Optional.of(event));
+        // Convidado já usou as 3 poses do evento
+        when(photoRepository.countByEventIdAndGuestDeviceId(eventId, guestDeviceId)).thenReturn(3L);
+
+        assertThatThrownBy(() -> photoService.upload(file, "Bearer token", eventId.toString()))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("Você já usou todas as suas 3 fotos neste evento");
+
+        verify(storageService, never()).upload(anyString(), any());
+        verify(photoRepository, never()).save(any());
+    }
+
+    @Test
+    void upload_eventDoesNotExist_throwsNotFoundException() throws IOException {
+        UUID eventId = UUID.randomUUID();
+
+        MultipartFile file = mock(MultipartFile.class);
+        when(file.isEmpty()).thenReturn(false);
+        when(file.getContentType()).thenReturn("image/jpeg");
+        when(file.getSize()).thenReturn(1024L);
+
+        var claims = mock(io.jsonwebtoken.Claims.class);
+        when(jwtUtil.extractClaims(anyString())).thenReturn(claims);
+        when(claims.getSubject()).thenReturn("device-123");
+        when(claims.get("displayName")).thenReturn("Maria");
+
+        when(eventRepository.findById(eventId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> photoService.upload(file, "Bearer token", eventId.toString()))
+                .isInstanceOf(NotFoundException.class);
+
+        verify(storageService, never()).upload(anyString(), any());
     }
 
     @Test

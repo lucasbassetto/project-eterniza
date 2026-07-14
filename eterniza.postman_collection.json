@@ -154,10 +154,10 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Casamento Ana & João\",\n  \"revealAt\": \"{{revealAt}}\"\n}"
+              "raw": "{\n  \"name\": \"Casamento Ana & João\",\n  \"revealAt\": \"{{revealAt}}\",\n  \"photoLimitPerGuest\": 10\n}"
             },
             "url": { "raw": "{{baseUrl}}/api/events", "host": [ "{{baseUrl}}" ], "path": [ "api", "events" ] },
-            "description": "Cria evento. 201 Created. data = EventResponse (id, slug, qrCodeUrl, ...).\nRequer Authorization: Bearer {{hostToken}}.\nrevealAt @Future (preenchido automaticamente).\nSem token → 401."
+            "description": "Cria evento. 201 Created. data = EventResponse (id, slug, qrCodeUrl, ...).\nRequer Authorization: Bearer {{hostToken}}.\nrevealAt @Future (preenchido automaticamente). photoLimitPerGuest opcional (padrão 10, 1-100).\nSem token → 401."
           }
         },
         {

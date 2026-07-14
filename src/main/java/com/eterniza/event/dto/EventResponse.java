@@ -8,5 +8,5 @@ import java.util.UUID;
 public record EventResponse(
         UUID id, String name, String slug, String qrCodeUrl,
         EventStatus status, Instant revealAt,
-        int photoCount, Instant createdAt
+        int photoLimitPerGuest, int photoCount, Instant createdAt
 ) {}

@@ -150,6 +150,80 @@ class PhotoControllerTest {
         assertThat(photoRepository.findAll()).isEmpty();
     }
 
+    // ─── Limite de fotos por convidado (câmera descartável) ───
+    @Test
+    void upload_guestAtPhotoLimit_returns400AndPersistsNothing() throws Exception {
+        Event limited = eventRepository.save(Event.builder()
+                .hostId(UUID.randomUUID())
+                .name("Festa com 1 pose")
+                .slug("limitada-" + UUID.randomUUID().toString().substring(0, 8))
+                .status(EventStatus.ACTIVE)
+                .revealAt(Instant.now().plus(1, ChronoUnit.DAYS))
+                .photoLimitPerGuest(1)
+                .build());
+        String token = jwtUtil.generateGuestToken("device-abc", "Ana", limited.getId().toString());
+
+        // 1ª foto: dentro do limite
+        mockMvc.perform(multipart("/api/photos/upload")
+                        .file(jpeg(new byte[]{1, 2, 3, 4}))
+                        .param("eventId", limited.getId().toString())
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isCreated());
+
+        // 2ª foto do mesmo deviceId: limite atingido
+        mockMvc.perform(multipart("/api/photos/upload")
+                        .file(jpeg(new byte[]{5, 6, 7, 8}))
+                        .param("eventId", limited.getId().toString())
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message").value("Você já usou todas as suas 1 fotos neste evento"));
+
+        assertThat(photoRepository.countByEventIdAndGuestDeviceId(limited.getId(), "device-abc"))
+                .isEqualTo(1);
+    }
+
+    @Test
+    void upload_otherDeviceStillHasItsOwnLimit() throws Exception {
+        Event limited = eventRepository.save(Event.builder()
+                .hostId(UUID.randomUUID())
+                .name("Festa com 1 pose")
+                .slug("limitada2-" + UUID.randomUUID().toString().substring(0, 8))
+                .status(EventStatus.ACTIVE)
+                .revealAt(Instant.now().plus(1, ChronoUnit.DAYS))
+                .photoLimitPerGuest(1)
+                .build());
+        String tokenAna  = jwtUtil.generateGuestToken("device-ana", "Ana", limited.getId().toString());
+        String tokenBeto = jwtUtil.generateGuestToken("device-beto", "Beto", limited.getId().toString());
+
+        mockMvc.perform(multipart("/api/photos/upload")
+                        .file(jpeg(new byte[]{1, 2}))
+                        .param("eventId", limited.getId().toString())
+                        .header("Authorization", "Bearer " + tokenAna))
+                .andExpect(status().isCreated());
+
+        // O limite é por convidado, não por evento: Beto ainda pode enviar
+        mockMvc.perform(multipart("/api/photos/upload")
+                        .file(jpeg(new byte[]{3, 4}))
+                        .param("eventId", limited.getId().toString())
+                        .header("Authorization", "Bearer " + tokenBeto))
+                .andExpect(status().isCreated());
+    }
+
+    @Test
+    void upload_nonExistentEvent_returns404() throws Exception {
+        UUID ghostEventId = UUID.randomUUID();
+        String token = jwtUtil.generateGuestToken("device-abc", "Ana", ghostEventId.toString());
+
+        mockMvc.perform(multipart("/api/photos/upload")
+                        .file(jpeg(new byte[]{1, 2, 3, 4}))
+                        .param("eventId", ghostEventId.toString())
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isNotFound());
+
+        assertThat(photoRepository.findAll()).isEmpty();
+    }
+
     // ─── IT-PHOTO-04: Gallery visibility (public) ───
     @Test
     void gallery_notRevealedEvent_isPublicAndHidesUrls() throws Exception {
