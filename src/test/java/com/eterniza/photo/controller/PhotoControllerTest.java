@@ -103,7 +103,7 @@ class PhotoControllerTest {
         List<Photo> photos = photoRepository.findAll();
         assertThat(photos).hasSize(1);
         Photo saved = photos.get(0);
-        assertThat(saved.getStatus()).isEqualTo(PhotoStatus.PROCESSING);
+        assertThat(saved.getStatus()).isEqualTo(PhotoStatus.READY);
         assertThat(saved.getEventId()).isEqualTo(eventId);
         assertThat(saved.getGuestDeviceId()).isEqualTo("device-abc");
         assertThat(saved.getGuestName()).isEqualTo("Ana");
@@ -112,7 +112,6 @@ class PhotoControllerTest {
                 .endsWith(".jpg");
 
         verify(storageService).upload(startsWith("events/" + eventId + "/originals/"), any());
-        verify(rabbitTemplate).convertAndSend(anyString(), anyString(), (Object) any());
     }
 
     // ─── IT-PHOTO-02: Upload without auth ───

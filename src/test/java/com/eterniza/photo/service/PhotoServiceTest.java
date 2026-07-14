@@ -2,9 +2,6 @@ package com.eterniza.photo.service;
 
 import com.eterniza.common.exception.BusinessException;
 import com.eterniza.common.security.JwtUtil;
-import com.eterniza.event.domain.Event;
-import com.eterniza.event.domain.FilmStyle;
-import com.eterniza.event.repository.EventRepository;
 import com.eterniza.photo.domain.Photo;
 import com.eterniza.photo.domain.PhotoStatus;
 import com.eterniza.photo.dto.GalleryResponse;
@@ -15,17 +12,12 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
-import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
-import java.util.Optional;
 import java.util.UUID;
 
-import static com.eterniza.event.messaging.RabbitMQConfig.EXCHANGE;
-import static com.eterniza.event.messaging.RabbitMQConfig.PHOTO_KEY;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
@@ -35,15 +27,13 @@ class PhotoServiceTest {
     private PhotoService photoService;
 
     @Mock private PhotoRepository photoRepository;
-    @Mock private EventRepository eventRepository;
     @Mock private StorageService storageService;
-    @Mock private RabbitTemplate rabbitTemplate;
     @Mock private JwtUtil jwtUtil;
 
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
-        photoService = new PhotoService(photoRepository, eventRepository, storageService, rabbitTemplate, jwtUtil);
+        photoService = new PhotoService(photoRepository, storageService, jwtUtil);
     }
 
     @Test
@@ -80,7 +70,7 @@ class PhotoServiceTest {
     }
 
     @Test
-    void upload_validFile_createsPhotoAndPublishesToRabbitMQ() throws IOException {
+    void upload_validFile_storesPhotoAsReady() throws IOException {
         UUID eventId = UUID.randomUUID();
         UUID photoId = UUID.randomUUID();
         String guestDeviceId = "device-123";
@@ -97,18 +87,12 @@ class PhotoServiceTest {
         when(claims.getSubject()).thenReturn(guestDeviceId);
         when(claims.get("displayName")).thenReturn(guestName);
 
-        Event event = Event.builder()
-                .id(eventId)
-                .filmStyle(FilmStyle.VINTAGE)
-                .build();
-        when(eventRepository.findById(eventId)).thenReturn(Optional.of(event));
-
         Photo savedPhoto = Photo.builder()
                 .id(photoId)
                 .eventId(eventId)
                 .guestDeviceId(guestDeviceId)
                 .guestName(guestName)
-                .status(PhotoStatus.PROCESSING)
+                .status(PhotoStatus.READY)
                 .build();
         when(photoRepository.save(any(Photo.class))).thenReturn(savedPhoto);
 
@@ -117,16 +101,16 @@ class PhotoServiceTest {
         assertThat(response.photoId()).isEqualTo(photoId);
         assertThat(response.message()).isEqualTo("Foto recebida!");
         verify(storageService).upload(contains("events/" + eventId + "/originals/"), eq(file));
-        verify(photoRepository).save(any(Photo.class));
 
-        @SuppressWarnings("unchecked")
-        ArgumentCaptor<Map<String, String>> payload = ArgumentCaptor.forClass(Map.class);
-        verify(rabbitTemplate).convertAndSend(eq(EXCHANGE), eq(PHOTO_KEY), (Object) payload.capture());
-        assertThat(payload.getValue())
-                .containsEntry("photoId", photoId.toString())
-                .containsEntry("filmStyle", "VINTAGE")
-                .containsKey("originalKey");
-        assertThat(payload.getValue().get("originalKey"))
+        // A foto é persistida já pronta (o app enviou a imagem final filtrada) —
+        // sem passo de processamento assíncrono no servidor.
+        ArgumentCaptor<Photo> saved = ArgumentCaptor.forClass(Photo.class);
+        verify(photoRepository).save(saved.capture());
+        assertThat(saved.getValue().getStatus()).isEqualTo(PhotoStatus.READY);
+        assertThat(saved.getValue().getEventId()).isEqualTo(eventId);
+        assertThat(saved.getValue().getGuestDeviceId()).isEqualTo(guestDeviceId);
+        assertThat(saved.getValue().getGuestName()).isEqualTo(guestName);
+        assertThat(saved.getValue().getOriginalKey())
                 .startsWith("events/" + eventId + "/originals/")
                 .endsWith(".jpg");
     }
