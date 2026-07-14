@@ -9,6 +9,8 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -37,10 +39,19 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiResponse<Void>> handleValidation(MethodArgumentNotValidException ex) {
-        String message = ex.getBindingResult().getFieldErrors().stream()
+        // message continua com as mensagens unidas (compatibilidade); errors traz
+        // campo → mensagem para o app destacar o campo certo no formulário.
+        var fieldErrors = ex.getBindingResult().getFieldErrors();
+        String message = fieldErrors.stream()
                 .map(FieldError::getDefaultMessage)
                 .collect(Collectors.joining(", "));
-        return ResponseEntity.badRequest().body(ApiResponse.error(message));
+        Map<String, String> errors = fieldErrors.stream()
+                .collect(Collectors.toMap(
+                        FieldError::getField,
+                        FieldError::getDefaultMessage,
+                        (first, second) -> first,   // várias violações no mesmo campo: mostra a primeira
+                        LinkedHashMap::new));
+        return ResponseEntity.badRequest().body(ApiResponse.validationError(message, errors));
     }
 
     @ExceptionHandler(Exception.class)

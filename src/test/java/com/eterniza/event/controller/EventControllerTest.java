@@ -238,7 +238,10 @@ class EventControllerTest {
                         .content(invalidJson))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.message").value(containsString("obrigatório")));
+                .andExpect(jsonPath("$.message").value(containsString("obrigatório")))
+                // errors mapeia campo → mensagem para o app destacar o campo
+                .andExpect(jsonPath("$.errors.name").value("Nome do evento é obrigatório"))
+                .andExpect(jsonPath("$.errors.revealAt").value("Revelação deve ser no futuro"));
     }
 
     // ─── EVENT-03: Create without authentication ───
